@@ -6,9 +6,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/IOTechSystems/go-mod-central-ext/v4/pkg/xrtmodels"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/dtos"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/errors"
-	"github.com/edgexfoundry/go-mod-core-contracts/v4/xrtmodels"
 )
 
 // EdgeClient defines the interface for interactions with the Edge service.
