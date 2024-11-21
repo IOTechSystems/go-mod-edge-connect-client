@@ -6,9 +6,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/IOTechSystems/go-mod-central-ext/v4/pkg/xrtmodels"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/dtos"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/errors"
-	"github.com/edgexfoundry/go-mod-core-contracts/v4/xrtmodels"
 )
 
 func (c *Client) AllDeviceProfiles(ctx context.Context) ([]string, errors.EdgeX) {
