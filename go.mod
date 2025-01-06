@@ -3,9 +3,9 @@ module github.com/IOTechSystems/go-mod-edge-connect-client/v4
 go 1.23
 
 require (
-	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.20
-	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.0.0-dev.14
-	github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.8
+	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.24
+	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.0.0-dev.15
+	github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.10
 )
 
 require (
@@ -22,16 +22,16 @@ require (
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	github.com/klauspost/compress v1.17.2 // indirect
+	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
-	github.com/nats-io/nats.go v1.37.0 // indirect
-	github.com/nats-io/nkeys v0.4.7 // indirect
+	github.com/nats-io/nats.go v1.38.0 // indirect
+	github.com/nats-io/nkeys v0.4.9 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.einride.tech/can v0.12.1 // indirect
 	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/mod v0.20.0 // indirect
-	golang.org/x/net v0.32.0 // indirect
+	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
