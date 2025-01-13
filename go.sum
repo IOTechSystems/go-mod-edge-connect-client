@@ -1,11 +1,11 @@
-github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.24 h1:HmTB6xnBq92wMDY/Vv9oGbfkCholyvpLnK2gsEIS6Z4=
-github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.24/go.mod h1:T6X1xQXgB4ECFxOhRTi/Rj+MPWxUqj7W8lhkgvGkitY=
+github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.29 h1:3fZkUObBXf6cZKYTXR4P9QSb0S4KK7MnKubgc+gnBH4=
+github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.29/go.mod h1:99yWV4V026/MBEXUvuYhi+ncEej/E1hp4ZUJbKXtJlo=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/eclipse/paho.mqtt.golang v1.5.0 h1:EH+bUVJNgttidWFkLLVKaQPGmkTUfQQqjOsyvMGvD6o=
 github.com/eclipse/paho.mqtt.golang v1.5.0/go.mod h1:du/2qNQVqJf/Sqs4MEL77kR8QTqANF7XU7Fk0aOTAgk=
-github.com/edgexfoundry/go-mod-core-contracts/v4 v4.0.0-dev.15 h1:4FbSL5rsNXVonrYz4K5v1oCNmi64LvcEx8xCgr6mXOo=
-github.com/edgexfoundry/go-mod-core-contracts/v4 v4.0.0-dev.15/go.mod h1:M5JXcRrmnIVNAmqeDNVXd0PSOGdq96fgrEmzivx02c8=
+github.com/edgexfoundry/go-mod-core-contracts/v4 v4.0.0-dev.19 h1:uXZml7n/I/+c7k3eZRuJRrlWjYx/Euk8tlnBqeitvB8=
+github.com/edgexfoundry/go-mod-core-contracts/v4 v4.0.0-dev.19/go.mod h1:M5JXcRrmnIVNAmqeDNVXd0PSOGdq96fgrEmzivx02c8=
 github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.10 h1:xvDQDIJtmj/ZCmKzbAzg3h1F2ZdWz1MPoJSNfYZANGc=
 github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.10/go.mod h1:ibaiw7r3RgLYDuuFfWT1kh//bjP+onDOOQsnSsdD4E8=
 github.com/fxamacker/cbor/v2 v2.7.0 h1:iM5WgngdRBanHcxugY4JySA0nk1wZorNOpTgCMedv5E=
