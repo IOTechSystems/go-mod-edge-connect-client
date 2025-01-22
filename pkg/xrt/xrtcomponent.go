@@ -1,4 +1,4 @@
-// Copyright (C) 2023 IOTech Ltd
+// Copyright (C) 2023-2025 IOTech Ltd
 
 package xrt
 
@@ -39,4 +39,15 @@ func (c *Client) DiscoverComponents(ctx context.Context, category string, subscr
 	}
 
 	return response, nil
+}
+
+func (c *Client) UpdateComponent(ctx context.Context, name string, config map[string]any) errors.EdgeX {
+	request := xrtmodels.NewComponentUpdateRequest(name, clientName, config)
+	var response xrtmodels.CommonResponse
+
+	err := c.sendXrtCommandRequest(ctx, request.RequestId, request, &response)
+	if err != nil {
+		return errors.NewCommonEdgeX(errors.Kind(err), "failed to update the component", err)
+	}
+	return nil
 }
