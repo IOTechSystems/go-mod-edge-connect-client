@@ -1,4 +1,4 @@
-// Copyright (C) 2023-2024 IOTech Ltd
+// Copyright (C) 2023-2025 IOTech Ltd
 
 package interfaces
 
@@ -36,6 +36,7 @@ type EdgeClient interface {
 
 	UpdateLuaScript(ctx context.Context, luaScript string) errors.EdgeX
 	DiscoverComponents(ctx context.Context, category string, subscribeTimeout time.Duration) ([]xrtmodels.MultiComponentsResponse, errors.EdgeX)
+	UpdateComponent(ctx context.Context, name string, config map[string]any) errors.EdgeX
 
 	TriggerDiscovery(ctx context.Context) errors.EdgeX
 
