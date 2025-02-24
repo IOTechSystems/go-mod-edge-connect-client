@@ -1,11 +1,11 @@
-github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.34 h1:6z8GH+jSl56KNSoAEGvakQSqz7FdLoTla65nlXPyIII=
-github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.34/go.mod h1:0QB5YF0Xw8K3pnHhdIvH9onAKfH/MAYvSVeapNRxMNs=
+github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.38 h1:eM7FlLmQnH/+dFLirEsisChX3ci8/O0yuuzyWAKqQVM=
+github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.38/go.mod h1:jSZxYTSQMsdVhN0NcvIRpgpThvLOvMtRUVcL+Fp78jk=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/eclipse/paho.mqtt.golang v1.5.0 h1:EH+bUVJNgttidWFkLLVKaQPGmkTUfQQqjOsyvMGvD6o=
 github.com/eclipse/paho.mqtt.golang v1.5.0/go.mod h1:du/2qNQVqJf/Sqs4MEL77kR8QTqANF7XU7Fk0aOTAgk=
-github.com/edgexfoundry/go-mod-core-contracts/v4 v4.0.0-dev.22 h1:XzDtbAmvp/v+DZlFoSgttnUQsIXGhlf+H8xgGxBClUA=
-github.com/edgexfoundry/go-mod-core-contracts/v4 v4.0.0-dev.22/go.mod h1:D35HIMZkFFy82shKtPYaEL3Nn+ZNEjUjZI1RLn1j23E=
+github.com/edgexfoundry/go-mod-core-contracts/v4 v4.0.0-dev.30 h1:kEcuH5hRnnyrDNF/Jm0RhaXiurOXBv2KRkiVx/f/0Jc=
+github.com/edgexfoundry/go-mod-core-contracts/v4 v4.0.0-dev.30/go.mod h1:AF1bbO7aA1ZdtZ7r/lQHV4OjiHtSzK5iDiW+PqWDCUc=
 github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.10 h1:xvDQDIJtmj/ZCmKzbAzg3h1F2ZdWz1MPoJSNfYZANGc=
 github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.10/go.mod h1:ibaiw7r3RgLYDuuFfWT1kh//bjP+onDOOQsnSsdD4E8=
 github.com/fxamacker/cbor/v2 v2.7.0 h1:iM5WgngdRBanHcxugY4JySA0nk1wZorNOpTgCMedv5E=
@@ -22,8 +22,8 @@ github.com/go-playground/locales v0.14.1 h1:EWaQ/wswjilfKLTECiXz7Rh+3BjFhfDFKv/o
 github.com/go-playground/locales v0.14.1/go.mod h1:hxrqLVvrK65+Rwrd5Fc6F2O76J/NuW9t0sjnWqG1slY=
 github.com/go-playground/universal-translator v0.18.1 h1:Bcnm0ZwsGyWbCzImXv+pAJnYK9S473LQFuzCbDbfSFY=
 github.com/go-playground/universal-translator v0.18.1/go.mod h1:xekY+UJKNuX9WP91TpwSH2VMlDf28Uj24BCp08ZFTUY=
-github.com/go-playground/validator/v10 v10.24.0 h1:KHQckvo8G6hlWnrPX4NJJ+aBfWNAE/HH+qdL2cBpCmg=
-github.com/go-playground/validator/v10 v10.24.0/go.mod h1:GGzBIJMuE98Ic/kJsBXbz1x/7cByt++cQ+YOuDM5wus=
+github.com/go-playground/validator/v10 v10.25.0 h1:5Dh7cjvzR7BRZadnsVOzPhWsrwUr0nmsZJxEAnFLNO8=
+github.com/go-playground/validator/v10 v10.25.0/go.mod h1:GGzBIJMuE98Ic/kJsBXbz1x/7cByt++cQ+YOuDM5wus=
 github.com/golang/mock v1.6.0 h1:ErTB+efbowRARo13NNdxyJji2egdxLGQhRaY+DUumQc=
 github.com/golang/mock v1.6.0/go.mod h1:p6yTPP+5HYm5mzsMV8JkE6ZKdX+/wYM6Hr+LicevLPs=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
