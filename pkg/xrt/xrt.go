@@ -258,19 +258,24 @@ func initSubscriptions(ctx context.Context, xrtClient *Client, clientOptions *Cl
 
 func commandReplyHandler(requestMap RequestMap, lc logger.LoggingClient) MessageHandler {
 	return func(message types.MessageEnvelope) {
-		var response xrtmodels.BaseResponse
-		err := json.Unmarshal(message.Payload, &response)
+		err := message.ConvertMsgPayloadToByteArray()
 		if err != nil {
-			lc.Warnf("failed to parse XRT reply, message:%s, err: %v", string(message.Payload), err)
+			lc.Errorf("failed to convert message payload to byte array: %v", err)
+			return
+		}
+		var response xrtmodels.BaseResponse
+		response, err = types.GetMsgPayload[xrtmodels.BaseResponse](message)
+		if err != nil {
+			lc.Warnf("failed to parse XRT reply, message:%s, err: %v", message.Payload, err)
 			return
 		}
 		resChan, ok := requestMap.Get(response.RequestId)
 		if !ok {
-			lc.Debugf("deprecated response from the XRT, it might be caused by timeout or unknown error, topic: %s, message:%s", message.ReceivedTopic, string(message.Payload))
+			lc.Debugf("deprecated response from the XRT, it might be caused by timeout or unknown error, topic: %s, message:%s", message.ReceivedTopic, message.Payload)
 			return
 		}
 
-		resChan <- message.Payload
+		resChan <- message.Payload.([]byte)
 	}
 }
 
