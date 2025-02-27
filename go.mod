@@ -5,7 +5,7 @@ go 1.23
 require (
 	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.38
 	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.0.0-dev.30
-	github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.10
+	github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.21
 )
 
 require (
@@ -24,7 +24,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
-	github.com/nats-io/nats.go v1.38.0 // indirect
+	github.com/nats-io/nats.go v1.39.1 // indirect
 	github.com/nats-io/nkeys v0.4.9 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
