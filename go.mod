@@ -3,8 +3,8 @@ module github.com/IOTechSystems/go-mod-edge-connect-client/v4
 go 1.23
 
 require (
-	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.38
-	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.0.0-dev.30
+	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.40
+	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.0.1
 	github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.21
 )
 
