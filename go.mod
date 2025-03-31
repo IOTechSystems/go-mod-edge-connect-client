@@ -1,10 +1,11 @@
 module github.com/IOTechSystems/go-mod-edge-connect-client/v4
 
 go 1.23
+toolchain go1.24.1
 
 require (
-	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.38
-	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.0.0-dev.30
+	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.45
+	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.1.0-dev.1
 	github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.21
 )
 
@@ -28,12 +29,12 @@ require (
 	github.com/nats-io/nkeys v0.4.9 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	go.einride.tech/can v0.12.1 // indirect
-	golang.org/x/crypto v0.32.0 // indirect
+	go.einride.tech/can v0.12.2 // indirect
+	golang.org/x/crypto v0.36.0 // indirect
 	golang.org/x/mod v0.20.0 // indirect
-	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/sys v0.29.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/net v0.37.0 // indirect
+	golang.org/x/sync v0.12.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/tools v0.24.0 // indirect
 )
