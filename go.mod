@@ -3,20 +3,20 @@ module github.com/IOTechSystems/go-mod-edge-connect-client/v4
 go 1.23.0
 
 require (
-	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.50
-	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.1.0-dev.6
+	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.54
+	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.1.0-dev.9
 	github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.21
 )
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.5.0 // indirect
-	github.com/fxamacker/cbor/v2 v2.8.0 // indirect
+	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
-	github.com/go-playground/validator/v10 v10.26.0 // indirect
+	github.com/go-playground/validator/v10 v10.27.0 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
