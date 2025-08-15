@@ -11,6 +11,10 @@ import (
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/errors"
 )
 
+const (
+	convertErrMsg = "failed to convert Edgex device to XRT device data"
+)
+
 func (c *Client) AllDevices(ctx context.Context) ([]string, errors.EdgeX) {
 	request := xrtmodels.NewAllDevicesRequest(clientName)
 	var response xrtmodels.MultiDevicesResponse
@@ -36,7 +40,7 @@ func (c *Client) DeviceByName(ctx context.Context, name string) (xrtmodels.Devic
 func (c *Client) AddDevice(ctx context.Context, device dtos.Device) errors.EdgeX {
 	xrtDevice, err := xrtmodels.ToXrtDevice(device)
 	if err != nil {
-		return errors.NewCommonEdgeX(errors.KindServerError, "failed to convert Edgex device to XRT device data", err)
+		return errors.NewCommonEdgeX(errors.KindServerError, convertErrMsg, err)
 	}
 	request := xrtmodels.NewDeviceAddRequest(xrtDevice, clientName)
 	var response xrtmodels.CommonResponse
@@ -51,7 +55,7 @@ func (c *Client) AddDevice(ctx context.Context, device dtos.Device) errors.EdgeX
 func (c *Client) UpdateDevice(ctx context.Context, device dtos.Device) errors.EdgeX {
 	xrtDevice, err := xrtmodels.ToXrtDevice(device)
 	if err != nil {
-		return errors.NewCommonEdgeX(errors.KindServerError, "failed to convert Edgex device to XRT device data", err)
+		return errors.NewCommonEdgeX(errors.KindServerError, convertErrMsg, err)
 	}
 	request := xrtmodels.NewDeviceUpdateRequest(xrtDevice, clientName)
 	var response xrtmodels.CommonResponse
@@ -78,7 +82,7 @@ func (c *Client) DeleteDeviceByName(ctx context.Context, name string) errors.Edg
 func (c *Client) AddDiscoveredDevice(ctx context.Context, device dtos.Device) errors.EdgeX {
 	xrtDevice, err := xrtmodels.ToXrtDevice(device)
 	if err != nil {
-		return errors.NewCommonEdgeX(errors.KindServerError, "failed to convert Edgex device to XRT device data", err)
+		return errors.NewCommonEdgeX(errors.KindServerError, convertErrMsg, err)
 	}
 	request := xrtmodels.NewDiscoveredDeviceAddRequest(xrtDevice, clientName)
 	var response xrtmodels.CommonResponse
@@ -94,7 +98,7 @@ func (c *Client) AddDiscoveredDevice(ctx context.Context, device dtos.Device) er
 func (c *Client) ScanDevice(ctx context.Context, device dtos.Device, options map[string]any) errors.EdgeX {
 	xrtDevice, err := xrtmodels.ToXrtDevice(device)
 	if err != nil {
-		return errors.NewCommonEdgeX(errors.KindServerError, "failed to convert Edgex device to XRT device data", err)
+		return errors.NewCommonEdgeX(errors.KindServerError, convertErrMsg, err)
 	}
 	request := xrtmodels.NewDeviceScanRequest(xrtDevice, clientName, options)
 	c.lc.Debugf("Sending device scan request for device %s with profile name %s and options %v", request.DeviceName, request.ProfileName, request.Options)
