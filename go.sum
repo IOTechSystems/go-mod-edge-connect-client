@@ -1,5 +1,5 @@
-github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.76 h1:NSCqJn/+pwL8S83UIldxldU7t+J7Oz7sC0A33N1LOJI=
-github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.76/go.mod h1:wSXRHSj3se2jkLso+QOvgoWRdQ86k93VqenM8IZB6fE=
+github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.77 h1:3ocxMorLtRuAhQQHxNlxnK0xc9Sl7lPSR/fDrdehOPQ=
+github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.77/go.mod h1:gVgkNUbdwxz7jvDWpmtjNNrvUGsNGWOBb3TuGX0Gqkg=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/eclipse/paho.mqtt.golang v1.5.0 h1:EH+bUVJNgttidWFkLLVKaQPGmkTUfQQqjOsyvMGvD6o=
