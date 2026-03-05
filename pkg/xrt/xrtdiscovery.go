@@ -18,9 +18,9 @@ func (c *Client) TriggerDiscovery(ctx context.Context) errors.EdgeX {
 		return errors.NewCommonEdgeX(errors.KindContractInvalid, "please provide DiscoveryOptions for the discovery request", nil)
 	}
 	options := map[string]any{
-		discoveryDurationOption: c.clientOptions.DiscoveryOptions.DiscoveryDuration.Milliseconds()}
+		discoveryDurationOption: c.clientOptions.DiscoveryDuration.Milliseconds()}
 
-	for k, v := range c.clientOptions.DiscoveryOptions.ExtentedDiscoveryOptions {
+	for k, v := range c.clientOptions.ExtentedDiscoveryOptions {
 		options[k] = v
 	}
 	c.lc.Debugf("triggering discovery with discovery options - %v", options)
