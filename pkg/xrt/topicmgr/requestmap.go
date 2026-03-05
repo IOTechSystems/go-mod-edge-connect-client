@@ -1,6 +1,6 @@
-// Copyright (C) 2023 IOTech Ltd
+// Copyright (C) 2023-2026 IOTech Ltd
 
-package xrt
+package topicmgr
 
 import "sync"
 

@@ -5,16 +5,15 @@ package xrt
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/interfaces"
+	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/xrt/topicmgr"
 
 	"github.com/IOTechSystems/go-mod-central-ext/v4/pkg/xrtmodels"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/clients/logger"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/errors"
 	"github.com/edgexfoundry/go-mod-messaging/v4/messaging"
-	"github.com/edgexfoundry/go-mod-messaging/v4/pkg/types"
 )
 
 const (
@@ -24,20 +23,17 @@ const (
 // Client implements the client of MQTT management API, https://docs.iotechsys.com/edge-xrt21/mqtt-management/mqtt-management.html
 type Client struct {
 	lc              logger.LoggingClient
-	requestMap      RequestMap
 	messageBus      messaging.MessageClient
 	requestTopic    string
 	replyTopic      string
 	responseTimeout time.Duration
 
 	clientOptions *ClientOptions
-}
 
-type MessageHandler func(message types.MessageEnvelope)
-
-type Subscription struct {
-	topicChannel   types.TopicChannel
-	messageHandler MessageHandler
+	replyTopicManager            *topicmgr.ReplyTopicManager
+	commandDiscoveryTopicManager *topicmgr.DispatcherTopicManager
+	discoveryTopicManager        *topicmgr.DispatcherTopicManager
+	statusTopicManager           *topicmgr.DispatcherTopicManager
 }
 
 type ClientOptions struct {
@@ -50,13 +46,13 @@ type ClientOptions struct {
 type CommandOptions struct {
 	CommandTopic            string
 	DiscoveryTopic          string
-	DiscoveryMessageHandler MessageHandler
+	DiscoveryMessageHandler topicmgr.MessageHandler
 }
 
 // DiscoveryOptions provides the config for sending the discovery request like discovery:trigger, device:scan
 type DiscoveryOptions struct {
 	DiscoveryTopic           string
-	DiscoveryMessageHandler  MessageHandler
+	DiscoveryMessageHandler  topicmgr.MessageHandler
 	DiscoveryTimeout         time.Duration
 	ExtendedDiscoveryOptions map[string]any
 }
@@ -64,14 +60,14 @@ type DiscoveryOptions struct {
 // StatusOptions provides the config for subscribing the XRT status
 type StatusOptions struct {
 	StatusTopic          string
-	StatusMessageHandler MessageHandler
+	StatusMessageHandler topicmgr.MessageHandler
 }
 
-func NewXrtClient(ctx context.Context, messageBus messaging.MessageClient, requestTopic string, replyTopic string,
+func NewXrtClient(_ context.Context, messageBus messaging.MessageClient, requestTopic string, replyTopic string,
 	responseTimeout time.Duration, lc logger.LoggingClient, clientOptions *ClientOptions) (interfaces.EdgeClient, errors.EdgeX) {
+
 	client := &Client{
 		lc:              lc,
-		requestMap:      NewRequestMap(),
 		messageBus:      messageBus,
 		requestTopic:    requestTopic,
 		replyTopic:      replyTopic,
@@ -79,9 +75,30 @@ func NewXrtClient(ctx context.Context, messageBus messaging.MessageClient, reque
 		clientOptions:   clientOptions,
 	}
 
-	err := initSubscriptions(ctx, client, clientOptions, lc)
-	if err != nil {
-		return client, errors.NewCommonEdgeX(errors.Kind(err), "failed to init subscriptions", err)
+	// Initialize ReplyTopic subscription
+	if replyTopic != "" {
+		var err errors.EdgeX
+		replyManager, err := topicmgr.TmPool.GetReplyTopicManager(replyTopic, messageBus, lc)
+		if err != nil {
+			return nil, errors.NewCommonEdgeX(errors.Kind(err), "failed to init subscriptions", err)
+		}
+		client.replyTopicManager = replyManager
+	}
+
+	// Initialize subscriptions for other topics defined in clientOptions
+	if clientOptions != nil {
+		if err := client.initCommandDiscoverySubscription(clientOptions, lc); err != nil {
+			_ = client.Close()
+			return nil, errors.NewCommonEdgeX(errors.Kind(err), "failed to init command discovery subscription", err)
+		}
+		if err := client.initDiscoverySubscription(clientOptions, lc); err != nil {
+			_ = client.Close()
+			return nil, errors.NewCommonEdgeX(errors.Kind(err), "failed to init discovery subscription", err)
+		}
+		if err := client.initStatusSubscription(clientOptions, lc); err != nil {
+			_ = client.Close()
+			return nil, errors.NewCommonEdgeX(errors.Kind(err), "failed to init status subscription", err)
+		}
 	}
 
 	return client, nil
@@ -95,7 +112,7 @@ func NewClientOptions(commandOptions *CommandOptions, discoveryOptions *Discover
 	}
 }
 
-func NewCommandOptions(commandTopic string, discoveryTopic string, discoveryMessageHandler MessageHandler) *CommandOptions {
+func NewCommandOptions(commandTopic string, discoveryTopic string, discoveryMessageHandler topicmgr.MessageHandler) *CommandOptions {
 	return &CommandOptions{
 		CommandTopic:            commandTopic,
 		DiscoveryTopic:          discoveryTopic,
@@ -103,7 +120,7 @@ func NewCommandOptions(commandTopic string, discoveryTopic string, discoveryMess
 	}
 }
 
-func NewDiscoveryOptions(discoveryTopic string, discoveryMessageHandler MessageHandler, discoveryTimeout time.Duration, extendedDiscoveryOptions map[string]any) *DiscoveryOptions {
+func NewDiscoveryOptions(discoveryTopic string, discoveryMessageHandler topicmgr.MessageHandler, discoveryTimeout time.Duration, extendedDiscoveryOptions map[string]any) *DiscoveryOptions {
 	return &DiscoveryOptions{
 		DiscoveryTopic:           discoveryTopic,
 		DiscoveryMessageHandler:  discoveryMessageHandler,
@@ -112,7 +129,7 @@ func NewDiscoveryOptions(discoveryTopic string, discoveryMessageHandler MessageH
 	}
 }
 
-func NewStatusOptions(statusTopic string, statusMessageHandler MessageHandler) *StatusOptions {
+func NewStatusOptions(statusTopic string, statusMessageHandler topicmgr.MessageHandler) *StatusOptions {
 	return &StatusOptions{
 		StatusTopic:          statusTopic,
 		StatusMessageHandler: statusMessageHandler,
@@ -152,14 +169,14 @@ func (c *Client) sendXrtRequestWithTimeout(ctx context.Context, requestTopic str
 	}
 
 	// Before publishing the request, we should create responseChan to receive the response from XRT
-	c.requestMap.Add(requestId)
+	c.replyTopicManager.RequestMap.Add(requestId)
 
 	err = c.messageBus.PublishBinaryData(jsonData, requestTopic)
 	if err != nil {
 		return errors.NewCommonEdgeX(errors.Kind(err), "failed to send the XRT request", err)
 	}
 
-	cmdResponseBytes, err := FetchXRTResponse(ctx, requestId, c.requestMap, responseTimeout)
+	cmdResponseBytes, err := FetchXRTResponse(ctx, requestId, c.replyTopicManager.RequestMap, responseTimeout)
 	if err != nil {
 		return errors.NewCommonEdgeXWrapper(err)
 	}
@@ -190,14 +207,14 @@ func (c *Client) sendXrtRequestWithSubTimeout(ctx context.Context, requestTopic 
 	}
 
 	// Before publishing the request, we should create responseChan to receive the response from XRT
-	c.requestMap.Add(requestId)
+	c.replyTopicManager.RequestMap.Add(requestId)
 
 	err = c.messageBus.PublishBinaryData(jsonData, requestTopic)
 	if err != nil {
 		return errors.NewCommonEdgeX(errors.Kind(err), "failed to send the XRT request", err)
 	}
 
-	edgexErr := FetchXRTResWithSubTimeout(ctx, requestId, c.requestMap, subscribeTimeout, response)
+	edgexErr := FetchXRTResWithSubTimeout(ctx, requestId, c.replyTopicManager.RequestMap, subscribeTimeout, response)
 	if edgexErr != nil {
 		return errors.NewCommonEdgeXWrapper(edgexErr)
 	}
@@ -205,115 +222,76 @@ func (c *Client) sendXrtRequestWithSubTimeout(ctx context.Context, requestTopic 
 	return nil
 }
 
-func initSubscriptions(ctx context.Context, xrtClient *Client, clientOptions *ClientOptions, lc logger.LoggingClient) errors.EdgeX {
-	subscriptions := createSubscriptions(xrtClient, clientOptions)
-	messageErrors := make(chan error)
-	// Create goroutine to handle MessageBus errors
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				lc.Info("Exiting waiting for MessageBus errors")
-				return
-			case msgErr := <-messageErrors:
-				lc.Errorf("error receiving message from bus, %s", msgErr.Error())
-			}
-		}
-	}()
-	// Create goroutines to receive message for each subscription
-	for _, sub := range subscriptions {
-		go func(subscription Subscription) {
-			lc.Infof("Waiting for messages from the MessageBus on the '%s' topic", subscription.topicChannel.Topic)
-			for {
-				select {
-				case <-ctx.Done():
-					lc.Infof("Exiting waiting for MessageBus '%s' topic messages", subscription.topicChannel.Topic)
-
-					// invoke the Unsubscribe method before exiting waiting for specific topic
-					err := xrtClient.messageBus.Unsubscribe(subscription.topicChannel.Topic)
-					if err != nil {
-						lc.Errorf("Error occurred while unsubscribing from topic %s", subscription.topicChannel.Topic)
-					}
-					return
-				case message := <-subscription.topicChannel.Messages:
-					lc.Debugf("Received message from the topic %s", subscription.topicChannel.Topic)
-					subscription.messageHandler(message)
-				}
-			}
-		}(sub)
-		err := xrtClient.messageBus.SubscribeBinaryData([]types.TopicChannel{sub.topicChannel}, messageErrors)
-		if err != nil {
-			return errors.NewCommonEdgeX(errors.Kind(err), fmt.Sprintf("subscribe to topic '%s' failed", sub.topicChannel.Topic), err)
-		}
-		lc.Debugf("Subscribed to %s", sub.topicChannel.Topic)
+// initCommandDiscoverySubscription initializes the CommandOptions.DiscoveryTopic subscription
+func (c *Client) initCommandDiscoverySubscription(clientOptions *ClientOptions, lc logger.LoggingClient) errors.EdgeX {
+	if clientOptions.CommandOptions == nil || clientOptions.CommandOptions.DiscoveryTopic == "" ||
+		clientOptions.CommandOptions.DiscoveryMessageHandler == nil {
+		return nil
 	}
+	manager, err := topicmgr.TmPool.GetDispatcherTopicManager(clientOptions.CommandOptions.DiscoveryTopic, c.messageBus, lc)
+	if err != nil {
+		return errors.NewCommonEdgeXWrapper(err)
+	}
+	manager.RegisterHandler(clientOptions.CommandOptions.DiscoveryMessageHandler)
+	c.commandDiscoveryTopicManager = manager
 	return nil
 }
 
-func commandReplyHandler(requestMap RequestMap, lc logger.LoggingClient) MessageHandler {
-	return func(message types.MessageEnvelope) {
-		err := message.ConvertMsgPayloadToByteArray()
-		if err != nil {
-			lc.Errorf("failed to convert message payload to byte array: %v", err)
-			return
-		}
-		var response xrtmodels.BaseResponse
-		response, err = types.GetMsgPayload[xrtmodels.BaseResponse](message)
-		if err != nil {
-			lc.Warnf("failed to parse XRT reply, message:%s, err: %v", message.Payload, err)
-			return
-		}
-		resChan, ok := requestMap.Get(response.RequestId)
-		if !ok {
-			lc.Debugf("deprecated response from the XRT, it might be caused by timeout or unknown error, topic: %s, message:%s", message.ReceivedTopic, message.Payload)
-			return
-		}
-
-		resChan <- message.Payload.([]byte)
+// initDiscoverySubscription initializes the DiscoveryOptions.DiscoveryTopic subscription
+func (c *Client) initDiscoverySubscription(clientOptions *ClientOptions, lc logger.LoggingClient) errors.EdgeX {
+	if clientOptions.DiscoveryOptions == nil || clientOptions.DiscoveryOptions.DiscoveryTopic == "" ||
+		clientOptions.DiscoveryOptions.DiscoveryMessageHandler == nil {
+		return nil
 	}
+	manager, err := topicmgr.TmPool.GetDispatcherTopicManager(clientOptions.DiscoveryOptions.DiscoveryTopic, c.messageBus, lc)
+	if err != nil {
+		return errors.NewCommonEdgeXWrapper(err)
+	}
+	manager.RegisterHandler(clientOptions.DiscoveryOptions.DiscoveryMessageHandler)
+	c.discoveryTopicManager = manager
+	return nil
 }
 
-func createSubscriptions(xrtClient *Client, clientOptions *ClientOptions) []Subscription {
-	var subscriptions []Subscription
-	if xrtClient.replyTopic != "" {
-		subscriptions = append(subscriptions, subscription(xrtClient.replyTopic, commandReplyHandler(xrtClient.requestMap, xrtClient.lc)))
+// initStatusSubscription initializes the StatusOptions.StatusTopic subscription
+func (c *Client) initStatusSubscription(clientOptions *ClientOptions, lc logger.LoggingClient) errors.EdgeX {
+	if clientOptions.StatusOptions == nil || clientOptions.StatusTopic == "" ||
+		clientOptions.StatusMessageHandler == nil {
+		return nil
 	}
-
-	if clientOptions == nil {
-		return subscriptions
+	manager, err := topicmgr.TmPool.GetDispatcherTopicManager(clientOptions.StatusTopic, c.messageBus, lc)
+	if err != nil {
+		return errors.NewCommonEdgeXWrapper(err)
 	}
-	if clientOptions.CommandOptions != nil {
-		if clientOptions.CommandOptions.DiscoveryTopic != "" && clientOptions.CommandOptions.DiscoveryMessageHandler != nil {
-			subscriptions = append(subscriptions, subscription(clientOptions.CommandOptions.DiscoveryTopic, clientOptions.CommandOptions.DiscoveryMessageHandler))
-		}
-	}
-	if clientOptions.DiscoveryOptions != nil {
-		if clientOptions.DiscoveryOptions.DiscoveryTopic != "" && clientOptions.DiscoveryOptions.DiscoveryMessageHandler != nil {
-			subscriptions = append(subscriptions, subscription(clientOptions.DiscoveryOptions.DiscoveryTopic, clientOptions.DiscoveryOptions.DiscoveryMessageHandler))
-		}
-	}
-	if clientOptions.StatusOptions != nil {
-		if clientOptions.StatusTopic != "" && clientOptions.StatusMessageHandler != nil {
-			subscriptions = append(subscriptions, subscription(clientOptions.StatusTopic, clientOptions.StatusMessageHandler))
-		}
-	}
-	return subscriptions
-}
-
-func subscription(topic string, messageHandler MessageHandler) Subscription {
-	return Subscription{
-		topicChannel: types.TopicChannel{
-			Topic:    topic,
-			Messages: make(chan types.MessageEnvelope),
-		},
-		messageHandler: messageHandler,
-	}
+	manager.RegisterHandler(clientOptions.StatusMessageHandler)
+	c.statusTopicManager = manager
+	return nil
 }
 
 func (c *Client) Close() errors.EdgeX {
-	err := c.messageBus.Disconnect()
-	if err != nil {
-		return errors.NewCommonEdgeXWrapper(err)
+	// Note: We don't call c.messageBus.Disconnect() here because the messageBus client may be used by other xrt clients.
+	// The disconnect should be handled by the code that that created the messageBus client.
+
+	if c.replyTopicManager != nil {
+		topicmgr.TmPool.ReleaseTopicManager(c.replyTopic)
+		c.replyTopicManager = nil
+	}
+
+	if c.commandDiscoveryTopicManager != nil {
+		c.commandDiscoveryTopicManager.UnregisterHandler(c.clientOptions.CommandOptions.DiscoveryMessageHandler)
+		topicmgr.TmPool.ReleaseTopicManager(c.commandDiscoveryTopicManager.Topic)
+		c.commandDiscoveryTopicManager = nil
+	}
+
+	if c.discoveryTopicManager != nil {
+		c.discoveryTopicManager.UnregisterHandler(c.clientOptions.DiscoveryOptions.DiscoveryMessageHandler)
+		topicmgr.TmPool.ReleaseTopicManager(c.discoveryTopicManager.Topic)
+		c.discoveryTopicManager = nil
+	}
+
+	if c.statusTopicManager != nil {
+		c.statusTopicManager.UnregisterHandler(c.clientOptions.StatusMessageHandler)
+		topicmgr.TmPool.ReleaseTopicManager(c.statusTopicManager.Topic)
+		c.statusTopicManager = nil
 	}
 	return nil
 }
