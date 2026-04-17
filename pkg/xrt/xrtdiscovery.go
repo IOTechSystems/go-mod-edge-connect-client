@@ -1,4 +1,4 @@
-// Copyright (C) 2023 IOTech Ltd
+// Copyright (C) 2023-2026 IOTech Ltd
 
 package xrt
 
@@ -9,22 +9,13 @@ import (
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/errors"
 )
 
-const (
-	discoveryDurationOption = "DiscoveryDuration"
-)
-
 func (c *Client) TriggerDiscovery(ctx context.Context) errors.EdgeX {
 	if c.clientOptions == nil || c.clientOptions.DiscoveryOptions == nil {
 		return errors.NewCommonEdgeX(errors.KindContractInvalid, "please provide DiscoveryOptions for the discovery request", nil)
 	}
-	options := map[string]any{
-		discoveryDurationOption: c.clientOptions.DiscoveryOptions.DiscoveryDuration.Milliseconds()}
 
-	for k, v := range c.clientOptions.DiscoveryOptions.ExtentedDiscoveryOptions {
-		options[k] = v
-	}
-	c.lc.Debugf("triggering discovery with discovery options - %v", options)
-	request := xrtmodels.NewDiscoveryRequest(clientName, options)
+	c.lc.Debugf("triggering discovery with discovery options - %v", c.clientOptions.ExtendedDiscoveryOptions)
+	request := xrtmodels.NewDiscoveryRequest(clientName, c.clientOptions.ExtendedDiscoveryOptions)
 	var response xrtmodels.CommonResponse
 
 	err := c.sendXrtDiscoveryRequest(ctx, request.RequestId, request, &response)
