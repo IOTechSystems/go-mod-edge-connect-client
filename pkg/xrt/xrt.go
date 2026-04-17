@@ -1,4 +1,4 @@
-// Copyright (C) 2023-2024 IOTech Ltd
+// Copyright (C) 2023-2026 IOTech Ltd
 
 package xrt
 
@@ -57,9 +57,8 @@ type CommandOptions struct {
 type DiscoveryOptions struct {
 	DiscoveryTopic           string
 	DiscoveryMessageHandler  MessageHandler
-	DiscoveryDuration        time.Duration
 	DiscoveryTimeout         time.Duration
-	ExtentedDiscoveryOptions map[string]any
+	ExtendedDiscoveryOptions map[string]any
 }
 
 // StatusOptions provides the config for subscribing the XRT status
@@ -104,17 +103,12 @@ func NewCommandOptions(commandTopic string, discoveryTopic string, discoveryMess
 	}
 }
 
-func NewDiscoveryOptions(discoveryTopic string, discoveryMessageHandler MessageHandler, discoveryDuration, discoveryTimeout time.Duration) *DiscoveryOptions {
-	return NewDiscoveryOptionsExtended(discoveryTopic, discoveryMessageHandler, discoveryDuration, discoveryTimeout, make(map[string]any))
-}
-
-func NewDiscoveryOptionsExtended(discoveryTopic string, discoveryMessageHandler MessageHandler, discoveryDuration, discoveryTimeout time.Duration, extendedDiscoveryOptions map[string]any) *DiscoveryOptions {
+func NewDiscoveryOptions(discoveryTopic string, discoveryMessageHandler MessageHandler, discoveryTimeout time.Duration, extendedDiscoveryOptions map[string]any) *DiscoveryOptions {
 	return &DiscoveryOptions{
 		DiscoveryTopic:           discoveryTopic,
 		DiscoveryMessageHandler:  discoveryMessageHandler,
-		DiscoveryDuration:        discoveryDuration,
 		DiscoveryTimeout:         discoveryTimeout,
-		ExtentedDiscoveryOptions: extendedDiscoveryOptions,
+		ExtendedDiscoveryOptions: extendedDiscoveryOptions,
 	}
 }
 
@@ -139,7 +133,7 @@ func (c *Client) sendXrtDiscoveryRequest(ctx context.Context, requestId string, 
 	if c.clientOptions == nil || c.clientOptions.DiscoveryOptions == nil {
 		return errors.NewCommonEdgeX(errors.KindContractInvalid, "please provide DiscoveryOptions for the discovery request", nil)
 	}
-	timeout := time.Duration(c.responseTimeout.Nanoseconds() + c.clientOptions.DiscoveryDuration.Nanoseconds() + c.clientOptions.DiscoveryTimeout.Nanoseconds())
+	timeout := time.Duration(c.responseTimeout.Nanoseconds() + c.clientOptions.DiscoveryTimeout.Nanoseconds())
 	return c.sendXrtRequestWithTimeout(ctx, c.requestTopic, requestId, request, response, timeout)
 }
 
@@ -148,7 +142,7 @@ func (c *Client) sendXrtCommandRequest(ctx context.Context, requestId string, re
 	if c.clientOptions == nil || c.clientOptions.CommandOptions == nil {
 		return errors.NewCommonEdgeX(errors.KindContractInvalid, "please provide CommandOptions for the command request", nil)
 	}
-	return c.sendXrtRequestWithTimeout(ctx, c.clientOptions.CommandOptions.CommandTopic, requestId, request, response, c.responseTimeout)
+	return c.sendXrtRequestWithTimeout(ctx, c.clientOptions.CommandTopic, requestId, request, response, c.responseTimeout)
 }
 
 func (c *Client) sendXrtRequestWithTimeout(ctx context.Context, requestTopic string, requestId string, request interface{}, response interface{}, responseTimeout time.Duration) errors.EdgeX {
@@ -299,8 +293,8 @@ func createSubscriptions(xrtClient *Client, clientOptions *ClientOptions) []Subs
 		}
 	}
 	if clientOptions.StatusOptions != nil {
-		if clientOptions.StatusOptions.StatusTopic != "" && clientOptions.StatusOptions.StatusMessageHandler != nil {
-			subscriptions = append(subscriptions, subscription(clientOptions.StatusOptions.StatusTopic, clientOptions.StatusOptions.StatusMessageHandler))
+		if clientOptions.StatusTopic != "" && clientOptions.StatusMessageHandler != nil {
+			subscriptions = append(subscriptions, subscription(clientOptions.StatusTopic, clientOptions.StatusMessageHandler))
 		}
 	}
 	return subscriptions
