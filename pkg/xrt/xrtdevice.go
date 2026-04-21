@@ -5,6 +5,7 @@ package xrt
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/IOTechSystems/go-mod-central-ext/v4/pkg/xrtmodels"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/dtos"
@@ -94,8 +95,12 @@ func (c *Client) AddDiscoveredDevice(ctx context.Context, device dtos.Device) er
 	return nil
 }
 
-// ScanDevice checks a device profile for updates.
-func (c *Client) ScanDevice(ctx context.Context, device dtos.Device, options map[string]any) errors.EdgeX {
+// ScanDevice checks a device profile for updates. The scan is a synchronous
+// request/reply RPC: the response arrives on the regular reply topic and does
+// not involve the discovery-topic subscription. Driver-side scans (OPC-UA
+// browse, BACnet object discovery, etc.) can run for tens of seconds, so
+// callers pass an explicit timeout sized for the expected scan duration.
+func (c *Client) ScanDevice(ctx context.Context, device dtos.Device, options map[string]any, timeout time.Duration) errors.EdgeX {
 	xrtDevice, err := xrtmodels.ToXrtDevice(device)
 	if err != nil {
 		return errors.NewCommonEdgeX(errors.KindServerError, convertErrMsg, err)
@@ -104,8 +109,7 @@ func (c *Client) ScanDevice(ctx context.Context, device dtos.Device, options map
 	c.lc.Debugf("Sending device scan request for device %s with profile name %s and options %v", request.DeviceName, request.ProfileName, request.Options)
 	var response xrtmodels.CommonResponse
 
-	// use discovery request for auto-generate or updating the profile
-	err = c.sendXrtDiscoveryRequest(ctx, request.RequestId, request, &response)
+	err = c.sendXrtRequestWithTimeout(ctx, c.requestTopic, request.RequestId, request, &response, timeout)
 	if err != nil {
 		return errors.NewCommonEdgeX(errors.Kind(err), "failed to scan device", err)
 	}
