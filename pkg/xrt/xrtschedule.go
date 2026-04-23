@@ -1,4 +1,4 @@
-// Copyright (C) 2023 IOTech Ltd
+// Copyright (C) 2023-2026 IOTech Ltd
 
 package xrt
 
@@ -39,6 +39,28 @@ func (c *Client) DeleteScheduleByName(ctx context.Context, name string) errors.E
 	err := c.sendXrtRequest(ctx, request.RequestId, request, &response)
 	if err != nil {
 		return errors.NewCommonEdgeX(errors.Kind(err), fmt.Sprintf("failed to delete schedule %s", name), err)
+	}
+	return nil
+}
+
+func (c *Client) ScheduleByName(ctx context.Context, name string) (xrtmodels.Schedule, errors.EdgeX) {
+	request := xrtmodels.NewScheduleReadRequest(name, clientName)
+	var response xrtmodels.ScheduleReadResponse
+
+	err := c.sendXrtRequest(ctx, request.RequestId, request, &response)
+	if err != nil {
+		return xrtmodels.Schedule{}, errors.NewCommonEdgeX(errors.Kind(err), "failed to read schedule", err)
+	}
+	return response.Result.Schedule, nil
+}
+
+func (c *Client) UpdateSchedule(ctx context.Context, schedule xrtmodels.Schedule) errors.EdgeX {
+	request := xrtmodels.NewScheduleUpdateRequest(clientName, schedule)
+	var response xrtmodels.CommonResponse
+
+	err := c.sendXrtRequest(ctx, request.RequestId, request, &response)
+	if err != nil {
+		return errors.NewCommonEdgeX(errors.Kind(err), "failed to update schedule", err)
 	}
 	return nil
 }
