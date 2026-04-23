@@ -1,4 +1,4 @@
-// Copyright (C) 2023-2025 IOTech Ltd
+// Copyright (C) 2023-2026 IOTech Ltd
 
 package interfaces
 
@@ -27,6 +27,8 @@ type EdgeClient interface {
 	AllSchedules(ctx context.Context) ([]string, errors.EdgeX)
 	AddSchedule(ctx context.Context, schedule xrtmodels.Schedule) errors.EdgeX
 	DeleteScheduleByName(ctx context.Context, scheduleName string) errors.EdgeX
+	ScheduleByName(ctx context.Context, name string) (xrtmodels.Schedule, errors.EdgeX)
+	UpdateSchedule(ctx context.Context, schedule xrtmodels.Schedule) errors.EdgeX
 
 	AllDeviceProfiles(ctx context.Context) ([]string, errors.EdgeX)
 	DeviceProfileByName(ctx context.Context, name string) (dtos.DeviceProfile, errors.EdgeX)
