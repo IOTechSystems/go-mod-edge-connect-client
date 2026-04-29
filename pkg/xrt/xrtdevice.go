@@ -101,19 +101,37 @@ func (c *Client) AddDiscoveredDevice(ctx context.Context, device dtos.Device) er
 // browse, BACnet object discovery, etc.) can run for tens of seconds, so
 // callers pass an explicit timeout sized for the expected scan duration.
 func (c *Client) ScanDevice(ctx context.Context, device dtos.Device, options map[string]any, timeout time.Duration) errors.EdgeX {
+	_, err := c.ScanDeviceWithResult(ctx, device, options, timeout)
+	return err
+}
+
+// scanDeviceResponse captures result.profile returned by device:scan.
+type scanDeviceResponse struct {
+	xrtmodels.BaseResponse `json:",inline"`
+	Result                 struct {
+		Profile string `json:"profile"`
+	} `json:"result"`
+}
+
+// ScanDeviceWithResult checks a device profile for updates and returns the name of the
+// generated (or updated) profile. Like ScanDevice, this is a synchronous request/reply
+// RPC — the profile name arrives in the reply on the regular reply topic; XRT does not
+// publish it on a separate discovery topic.
+func (c *Client) ScanDeviceWithResult(ctx context.Context, device dtos.Device, options map[string]any, timeout time.Duration) (string, errors.EdgeX) {
 	xrtDevice, err := xrtmodels.ToXrtDevice(device)
 	if err != nil {
-		return errors.NewCommonEdgeX(errors.KindServerError, convertErrMsg, err)
+		return "", errors.NewCommonEdgeX(errors.KindServerError, convertErrMsg, err)
 	}
 	request := xrtmodels.NewDeviceScanRequest(xrtDevice, clientName, options)
-	c.lc.Debugf("Sending device scan request for device %s with profile name %s and options %v", request.DeviceName, request.ProfileName, request.Options)
-	var response xrtmodels.CommonResponse
+	c.lc.Debugf("Sending device scan request for device %s with profile name %s and options %v",
+		request.DeviceName, request.ProfileName, request.Options)
+	var response scanDeviceResponse
 
 	err = c.sendXrtRequestWithTimeout(ctx, c.requestTopic, request.RequestId, request, &response, timeout)
 	if err != nil {
-		return errors.NewCommonEdgeX(errors.Kind(err), "failed to scan device", err)
+		return "", errors.NewCommonEdgeX(errors.Kind(err), "failed to scan device", err)
 	}
-	return nil
+	return response.Result.Profile, nil
 }
 
 func (c *Client) ReadDeviceResources(ctx context.Context, deviceName string, resourceNames []string) (xrtmodels.MultiResourcesResult, errors.EdgeX) {
