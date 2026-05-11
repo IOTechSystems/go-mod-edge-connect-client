@@ -58,6 +58,10 @@ type DiscoveryOptions struct {
 	DiscoveryMessageHandler  topicmgr.MessageHandler
 	DiscoveryTimeout         time.Duration
 	ExtendedDiscoveryOptions map[string]any
+	// MaxNodeCount is the maximum number of XRT nodes allowed to reply to a discovery request.
+	// It sets the response channel buffer size to avoid dropping replies when multiple nodes respond concurrently.
+	// Defaults to 1024 if not set.
+	MaxNodeCount uint
 }
 
 // StatusOptions provides the config for subscribing the XRT status
@@ -123,12 +127,16 @@ func NewCommandOptions(commandTopic string, discoveryTopic string, discoveryMess
 	}
 }
 
-func NewDiscoveryOptions(discoveryTopic string, discoveryMessageHandler topicmgr.MessageHandler, discoveryTimeout time.Duration, extendedDiscoveryOptions map[string]any) *DiscoveryOptions {
+func NewDiscoveryOptions(discoveryTopic string, discoveryMessageHandler topicmgr.MessageHandler, discoveryTimeout time.Duration, extendedDiscoveryOptions map[string]any, maxNodeCount uint) *DiscoveryOptions {
+	if maxNodeCount == 0 {
+		maxNodeCount = 1024
+	}
 	return &DiscoveryOptions{
 		DiscoveryTopic:           discoveryTopic,
 		DiscoveryMessageHandler:  discoveryMessageHandler,
 		DiscoveryTimeout:         discoveryTimeout,
 		ExtendedDiscoveryOptions: extendedDiscoveryOptions,
+		MaxNodeCount:             maxNodeCount,
 	}
 }
 
@@ -176,10 +184,11 @@ func (c *Client) sendXrtRequestWithTimeout(ctx context.Context, requestTopic str
 	}
 
 	// Before publishing the request, we should create responseChan to receive the response from XRT
-	c.replyTopicManager.RequestMap.Add(requestId)
+	c.replyTopicManager.RequestMap.Add(requestId, 1)
 
 	err = c.messageBus.PublishBinaryData(jsonData, requestTopic)
 	if err != nil {
+		c.replyTopicManager.RequestMap.Delete(requestId)
 		return errors.NewCommonEdgeX(errors.Kind(err), "failed to send the XRT request", err)
 	}
 
@@ -217,11 +226,13 @@ func (c *Client) sendXrtRequestWithSubTimeout(ctx context.Context, requestTopic 
 		return errors.NewCommonEdgeXWrapper(err)
 	}
 
-	// Before publishing the request, we should create responseChan to receive the response from XRT
-	c.replyTopicManager.RequestMap.Add(requestId)
+	// Before publishing the request, we should create responseChan to receive the response from XRT.
+	// Use MaxNodeCount as buffer capacity so replies from multiple XRT nodes don't get dropped.
+	c.replyTopicManager.RequestMap.Add(requestId, c.clientOptions.MaxNodeCount)
 
 	err = c.messageBus.PublishBinaryData(jsonData, requestTopic)
 	if err != nil {
+		c.replyTopicManager.RequestMap.Delete(requestId)
 		return errors.NewCommonEdgeX(errors.Kind(err), "failed to send the XRT request", err)
 	}
 
@@ -292,7 +303,7 @@ func (c *Client) initStatusSubscription(clientOptions *ClientOptions, lc logger.
 
 func (c *Client) Close() errors.EdgeX {
 	// Note: We don't call c.messageBus.Disconnect() here because the messageBus client may be used by other xrt clients.
-	// The disconnect should be handled by the code that that created the messageBus client.
+	// The disconnect should be handled by the code that created the messageBus client.
 
 	if c.replyTopicManager != nil {
 		topicmgr.TmPool.ReleaseTopicManager(c.replyTopic)
