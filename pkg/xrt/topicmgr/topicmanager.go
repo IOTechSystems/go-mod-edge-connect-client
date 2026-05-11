@@ -80,7 +80,14 @@ func (b *topicManagerBase) startListening(subscriptionCtx context.Context, handl
 				b.lc.Errorf("error receiving message from bus, %s", msgErr.Error())
 			case message := <-b.topicChannel.Messages:
 				b.lc.Debugf("Received message from the topic %s", b.topicChannel.Topic)
-				handler(message)
+				func() {
+					defer func() {
+						if recovered := recover(); recovered != nil {
+							b.lc.Errorf("panic while handling message from topic '%s': %v", b.topicChannel.Topic, recovered)
+						}
+					}()
+					handler(message)
+				}()
 			}
 		}
 	}()

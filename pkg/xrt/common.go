@@ -19,7 +19,6 @@ func FetchXRTResponse(ctx context.Context, requestId string, requestMap topicmgr
 		return nil, errors.NewCommonEdgeX(errors.KindServerError, fmt.Sprintf("the corresponding ResponseChan not found by requestId %s", requestId), nil)
 	}
 	defer func() {
-		close(resChan)
 		requestMap.Delete(requestId)
 	}()
 
@@ -43,7 +42,6 @@ func FetchXRTResWithSubTimeout(ctx context.Context, requestId string, requestMap
 	}
 
 	defer func() {
-		close(resChan)
 		requestMap.Delete(requestId)
 	}()
 

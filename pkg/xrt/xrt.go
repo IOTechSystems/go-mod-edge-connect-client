@@ -32,8 +32,11 @@ type Client struct {
 
 	replyTopicManager            *topicmgr.ReplyTopicManager
 	commandDiscoveryTopicManager *topicmgr.DispatcherTopicManager
+	commandDiscoveryHandlerID    topicmgr.HandlerID
 	discoveryTopicManager        *topicmgr.DispatcherTopicManager
+	discoveryHandlerID           topicmgr.HandlerID
 	statusTopicManager           *topicmgr.DispatcherTopicManager
+	statusHandlerID              topicmgr.HandlerID
 }
 
 type ClientOptions struct {
@@ -163,6 +166,10 @@ func (c *Client) sendXrtCommandRequest(ctx context.Context, requestId string, re
 }
 
 func (c *Client) sendXrtRequestWithTimeout(ctx context.Context, requestTopic string, requestId string, request interface{}, response interface{}, responseTimeout time.Duration) errors.EdgeX {
+	if c.replyTopicManager == nil {
+		return errors.NewCommonEdgeX(errors.KindContractInvalid, "replyTopic is required for sending XRT request", nil)
+	}
+
 	jsonData, err := json.Marshal(request)
 	if err != nil {
 		return errors.NewCommonEdgeXWrapper(err)
@@ -201,6 +208,10 @@ func (c *Client) sendXrtRequestWithTimeout(ctx context.Context, requestTopic str
 // sendXrtRequestWithSubTimeout publish the xrt request and wait for responses from multiple xrt nodes for the specific subscribe timeout
 func (c *Client) sendXrtRequestWithSubTimeout(ctx context.Context, requestTopic string, requestId string, request any,
 	response any, subscribeTimeout time.Duration) errors.EdgeX {
+	if c.replyTopicManager == nil {
+		return errors.NewCommonEdgeX(errors.KindContractInvalid, "replyTopic is required for sending XRT request", nil)
+	}
+
 	jsonData, err := json.Marshal(request)
 	if err != nil {
 		return errors.NewCommonEdgeXWrapper(err)
@@ -232,7 +243,11 @@ func (c *Client) initCommandDiscoverySubscription(clientOptions *ClientOptions, 
 	if err != nil {
 		return errors.NewCommonEdgeXWrapper(err)
 	}
-	manager.RegisterHandler(clientOptions.CommandOptions.DiscoveryMessageHandler)
+	handlerID, err := manager.RegisterHandler(clientOptions.CommandOptions.DiscoveryMessageHandler)
+	if err != nil {
+		return errors.NewCommonEdgeXWrapper(err)
+	}
+	c.commandDiscoveryHandlerID = handlerID
 	c.commandDiscoveryTopicManager = manager
 	return nil
 }
@@ -247,7 +262,11 @@ func (c *Client) initDiscoverySubscription(clientOptions *ClientOptions, lc logg
 	if err != nil {
 		return errors.NewCommonEdgeXWrapper(err)
 	}
-	manager.RegisterHandler(clientOptions.DiscoveryOptions.DiscoveryMessageHandler)
+	handlerID, err := manager.RegisterHandler(clientOptions.DiscoveryOptions.DiscoveryMessageHandler)
+	if err != nil {
+		return errors.NewCommonEdgeXWrapper(err)
+	}
+	c.discoveryHandlerID = handlerID
 	c.discoveryTopicManager = manager
 	return nil
 }
@@ -262,7 +281,11 @@ func (c *Client) initStatusSubscription(clientOptions *ClientOptions, lc logger.
 	if err != nil {
 		return errors.NewCommonEdgeXWrapper(err)
 	}
-	manager.RegisterHandler(clientOptions.StatusMessageHandler)
+	handlerID, err := manager.RegisterHandler(clientOptions.StatusMessageHandler)
+	if err != nil {
+		return errors.NewCommonEdgeXWrapper(err)
+	}
+	c.statusHandlerID = handlerID
 	c.statusTopicManager = manager
 	return nil
 }
@@ -277,19 +300,19 @@ func (c *Client) Close() errors.EdgeX {
 	}
 
 	if c.commandDiscoveryTopicManager != nil {
-		c.commandDiscoveryTopicManager.UnregisterHandler(c.clientOptions.CommandOptions.DiscoveryMessageHandler)
+		c.commandDiscoveryTopicManager.UnregisterHandler(c.commandDiscoveryHandlerID)
 		topicmgr.TmPool.ReleaseTopicManager(c.commandDiscoveryTopicManager.Topic)
 		c.commandDiscoveryTopicManager = nil
 	}
 
 	if c.discoveryTopicManager != nil {
-		c.discoveryTopicManager.UnregisterHandler(c.clientOptions.DiscoveryOptions.DiscoveryMessageHandler)
+		c.discoveryTopicManager.UnregisterHandler(c.discoveryHandlerID)
 		topicmgr.TmPool.ReleaseTopicManager(c.discoveryTopicManager.Topic)
 		c.discoveryTopicManager = nil
 	}
 
 	if c.statusTopicManager != nil {
-		c.statusTopicManager.UnregisterHandler(c.clientOptions.StatusMessageHandler)
+		c.statusTopicManager.UnregisterHandler(c.statusHandlerID)
 		topicmgr.TmPool.ReleaseTopicManager(c.statusTopicManager.Topic)
 		c.statusTopicManager = nil
 	}
