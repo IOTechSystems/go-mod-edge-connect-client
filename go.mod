@@ -3,14 +3,14 @@ module github.com/IOTechSystems/go-mod-edge-connect-client/v4
 go 1.25.0
 
 require (
-	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.91
-	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.1.0-dev.32
+	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.94
+	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.1.0-dev.36
 	github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.21
 )
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.5.0 // indirect
-	github.com/fxamacker/cbor/v2 v2.9.1 // indirect
+	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
