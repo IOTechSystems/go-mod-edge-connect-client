@@ -60,7 +60,7 @@ A thread-safe map from request ID to response channel:
 
 | Method | Description |
 |---|---|
-| `Add(requestId)` | Create an unbuffered `chan []byte` and store it in the map |
+| `Add(requestId, capacity)` | Create a buffered `chan []byte` with the given capacity and store it in the map. Capacity of 1 is used for single-reply requests; a larger value (e.g. `MaxNodeCount`) is used for multi-node discovery requests to avoid dropping concurrent replies. |
 | `Get(requestId)` | Retrieve the channel (used by the reply handler to send the response) |
 | `Delete(requestId)` | Remove the entry from the map |
 
@@ -70,7 +70,7 @@ A thread-safe map from request ID to response channel:
 
 ```
 Client.sendXrtRequest()
-  -> RequestMap.Add(id)            // create response channel
+  -> RequestMap.Add(id, capacity)  // create buffered response channel
   -> messageBus.Publish(request)   // send the request
   -> FetchXRTResponse()            // select: channel / timeout / ctx.Done
          ^

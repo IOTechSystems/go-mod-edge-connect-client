@@ -128,9 +128,6 @@ func NewCommandOptions(commandTopic string, discoveryTopic string, discoveryMess
 }
 
 func NewDiscoveryOptions(discoveryTopic string, discoveryMessageHandler topicmgr.MessageHandler, discoveryTimeout time.Duration, extendedDiscoveryOptions map[string]any, maxNodeCount uint) *DiscoveryOptions {
-	if maxNodeCount == 0 {
-		maxNodeCount = 1024
-	}
 	return &DiscoveryOptions{
 		DiscoveryTopic:           discoveryTopic,
 		DiscoveryMessageHandler:  discoveryMessageHandler,
@@ -228,7 +225,11 @@ func (c *Client) sendXrtRequestWithSubTimeout(ctx context.Context, requestTopic 
 
 	// Before publishing the request, we should create responseChan to receive the response from XRT.
 	// Use MaxNodeCount as buffer capacity so replies from multiple XRT nodes don't get dropped.
-	c.replyTopicManager.RequestMap.Add(requestId, c.clientOptions.MaxNodeCount)
+	var maxNodeCount uint = 1024
+	if c.clientOptions != nil && c.clientOptions.DiscoveryOptions != nil && c.clientOptions.MaxNodeCount > 0 {
+		maxNodeCount = c.clientOptions.MaxNodeCount
+	}
+	c.replyTopicManager.RequestMap.Add(requestId, maxNodeCount)
 
 	err = c.messageBus.PublishBinaryData(jsonData, requestTopic)
 	if err != nil {

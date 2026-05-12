@@ -34,7 +34,7 @@ func commandReplyHandler(requestMap RequestMap, lc logger.LoggingClient) Message
 		select {
 		case resChan <- message.Payload.([]byte):
 		default:
-			lc.Debugf("dropping XRT reply because no receiver is waiting, requestId: %s, topic: %s", response.RequestId, message.ReceivedTopic)
+			lc.Debugf("dropping XRT reply because reply channel is not ready (no receiver waiting or buffer full), requestId: %s, topic: %s", response.RequestId, message.ReceivedTopic)
 		}
 	}
 }
