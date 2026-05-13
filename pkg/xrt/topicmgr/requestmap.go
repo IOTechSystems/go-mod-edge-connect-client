@@ -1,13 +1,13 @@
-// Copyright (C) 2023 IOTech Ltd
+// Copyright (C) 2023-2026 IOTech Ltd
 
-package xrt
+package topicmgr
 
 import "sync"
 
 // RequestMap maintains the mapping between requestId and
 // command response channel of []byte type
 type RequestMap interface {
-	Add(id string)
+	Add(id string, capacity uint)
 	Get(id string) (chan []byte, bool)
 	Delete(id string)
 }
@@ -23,10 +23,10 @@ func NewRequestMap() RequestMap {
 	}
 }
 
-func (m *requestMap) Add(id string) {
+func (m *requestMap) Add(id string, capacity uint) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	m.responseChanMap[id] = make(chan []byte)
+	m.responseChanMap[id] = make(chan []byte, capacity)
 }
 
 func (m *requestMap) Get(id string) (chan []byte, bool) {

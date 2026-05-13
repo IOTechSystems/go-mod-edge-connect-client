@@ -1,4 +1,4 @@
-// Copyright (C) 2023 IOTech Ltd
+// Copyright (C) 2023-2026 IOTech Ltd
 
 package xrt
 
@@ -9,16 +9,16 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/xrt/topicmgr"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/errors"
 )
 
-func FetchXRTResponse(ctx context.Context, requestId string, requestMap RequestMap, responseTimeout time.Duration) ([]byte, errors.EdgeX) {
+func FetchXRTResponse(ctx context.Context, requestId string, requestMap topicmgr.RequestMap, responseTimeout time.Duration) ([]byte, errors.EdgeX) {
 	resChan, ok := requestMap.Get(requestId)
 	if !ok {
 		return nil, errors.NewCommonEdgeX(errors.KindServerError, fmt.Sprintf("the corresponding ResponseChan not found by requestId %s", requestId), nil)
 	}
 	defer func() {
-		close(resChan)
 		requestMap.Delete(requestId)
 	}()
 
@@ -35,14 +35,13 @@ func FetchXRTResponse(ctx context.Context, requestId string, requestMap RequestM
 
 // FetchXRTResWithSubTimeout subscribe multiple messages of the same requestId for the given subscribe timeout, and the result will be appended in the response slice
 // After the subscribe timeout, the response slice pointer will be returned
-func FetchXRTResWithSubTimeout(ctx context.Context, requestId string, requestMap RequestMap, subscribeTimeout time.Duration, response any) errors.EdgeX {
+func FetchXRTResWithSubTimeout(ctx context.Context, requestId string, requestMap topicmgr.RequestMap, subscribeTimeout time.Duration, response any) errors.EdgeX {
 	resChan, ok := requestMap.Get(requestId)
 	if !ok {
 		return errors.NewCommonEdgeX(errors.KindServerError, fmt.Sprintf("the corresponding ResponseChan not found by requestId %s", requestId), nil)
 	}
 
 	defer func() {
-		close(resChan)
 		requestMap.Delete(requestId)
 	}()
 
