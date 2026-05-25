@@ -70,7 +70,7 @@ type StatusOptions struct {
 	StatusMessageHandler topicmgr.MessageHandler
 }
 
-func NewXrtClient(_ context.Context, messageBus messaging.MessageClient, requestTopic string, replyTopic string,
+func NewXrtClient(ctx context.Context, messageBus messaging.MessageClient, requestTopic string, replyTopic string,
 	responseTimeout time.Duration, lc logger.LoggingClient, clientOptions *ClientOptions) (interfaces.EdgeClient, errors.EdgeX) {
 
 	client := &Client{
@@ -85,7 +85,7 @@ func NewXrtClient(_ context.Context, messageBus messaging.MessageClient, request
 	// Initialize ReplyTopic subscription
 	if replyTopic != "" {
 		var err errors.EdgeX
-		replyManager, err := topicmgr.TmPool.GetReplyTopicManager(replyTopic, messageBus, lc)
+		replyManager, err := topicmgr.TmPool.GetReplyTopicManager(replyTopic, messageBus, lc, ctx)
 		if err != nil {
 			return nil, errors.NewCommonEdgeX(errors.Kind(err), "failed to init subscriptions", err)
 		}
@@ -94,15 +94,15 @@ func NewXrtClient(_ context.Context, messageBus messaging.MessageClient, request
 
 	// Initialize subscriptions for other topics defined in clientOptions
 	if clientOptions != nil {
-		if err := client.initCommandDiscoverySubscription(clientOptions, lc); err != nil {
+		if err := client.initCommandDiscoverySubscription(clientOptions, lc, ctx); err != nil {
 			_ = client.Close()
 			return nil, errors.NewCommonEdgeX(errors.Kind(err), "failed to init command discovery subscription", err)
 		}
-		if err := client.initDiscoverySubscription(clientOptions, lc); err != nil {
+		if err := client.initDiscoverySubscription(clientOptions, lc, ctx); err != nil {
 			_ = client.Close()
 			return nil, errors.NewCommonEdgeX(errors.Kind(err), "failed to init discovery subscription", err)
 		}
-		if err := client.initStatusSubscription(clientOptions, lc); err != nil {
+		if err := client.initStatusSubscription(clientOptions, lc, ctx); err != nil {
 			_ = client.Close()
 			return nil, errors.NewCommonEdgeX(errors.Kind(err), "failed to init status subscription", err)
 		}
@@ -246,12 +246,12 @@ func (c *Client) sendXrtRequestWithSubTimeout(ctx context.Context, requestTopic 
 }
 
 // initCommandDiscoverySubscription initializes the CommandOptions.DiscoveryTopic subscription
-func (c *Client) initCommandDiscoverySubscription(clientOptions *ClientOptions, lc logger.LoggingClient) errors.EdgeX {
+func (c *Client) initCommandDiscoverySubscription(clientOptions *ClientOptions, lc logger.LoggingClient, ctx context.Context) errors.EdgeX {
 	if clientOptions.CommandOptions == nil || clientOptions.CommandOptions.DiscoveryTopic == "" ||
 		clientOptions.CommandOptions.DiscoveryMessageHandler == nil {
 		return nil
 	}
-	manager, err := topicmgr.TmPool.GetDispatcherTopicManager(clientOptions.CommandOptions.DiscoveryTopic, c.messageBus, lc)
+	manager, err := topicmgr.TmPool.GetDispatcherTopicManager(clientOptions.CommandOptions.DiscoveryTopic, c.messageBus, lc, ctx)
 	if err != nil {
 		return errors.NewCommonEdgeXWrapper(err)
 	}
@@ -265,12 +265,12 @@ func (c *Client) initCommandDiscoverySubscription(clientOptions *ClientOptions, 
 }
 
 // initDiscoverySubscription initializes the DiscoveryOptions.DiscoveryTopic subscription
-func (c *Client) initDiscoverySubscription(clientOptions *ClientOptions, lc logger.LoggingClient) errors.EdgeX {
+func (c *Client) initDiscoverySubscription(clientOptions *ClientOptions, lc logger.LoggingClient, ctx context.Context) errors.EdgeX {
 	if clientOptions.DiscoveryOptions == nil || clientOptions.DiscoveryOptions.DiscoveryTopic == "" ||
 		clientOptions.DiscoveryOptions.DiscoveryMessageHandler == nil {
 		return nil
 	}
-	manager, err := topicmgr.TmPool.GetDispatcherTopicManager(clientOptions.DiscoveryOptions.DiscoveryTopic, c.messageBus, lc)
+	manager, err := topicmgr.TmPool.GetDispatcherTopicManager(clientOptions.DiscoveryOptions.DiscoveryTopic, c.messageBus, lc, ctx)
 	if err != nil {
 		return errors.NewCommonEdgeXWrapper(err)
 	}
@@ -284,12 +284,12 @@ func (c *Client) initDiscoverySubscription(clientOptions *ClientOptions, lc logg
 }
 
 // initStatusSubscription initializes the StatusOptions.StatusTopic subscription
-func (c *Client) initStatusSubscription(clientOptions *ClientOptions, lc logger.LoggingClient) errors.EdgeX {
+func (c *Client) initStatusSubscription(clientOptions *ClientOptions, lc logger.LoggingClient, ctx context.Context) errors.EdgeX {
 	if clientOptions.StatusOptions == nil || clientOptions.StatusTopic == "" ||
 		clientOptions.StatusMessageHandler == nil {
 		return nil
 	}
-	manager, err := topicmgr.TmPool.GetDispatcherTopicManager(clientOptions.StatusTopic, c.messageBus, lc)
+	manager, err := topicmgr.TmPool.GetDispatcherTopicManager(clientOptions.StatusTopic, c.messageBus, lc, ctx)
 	if err != nil {
 		return errors.NewCommonEdgeXWrapper(err)
 	}
