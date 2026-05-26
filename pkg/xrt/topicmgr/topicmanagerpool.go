@@ -27,7 +27,8 @@ var TmPool = &TopicManagerPool{
 func (pool *TopicManagerPool) GetReplyTopicManager(
 	topic string,
 	messageBus messaging.MessageClient,
-	lc logger.LoggingClient) (*ReplyTopicManager, errors.EdgeX) {
+	lc logger.LoggingClient,
+	ctx context.Context) (*ReplyTopicManager, errors.EdgeX) {
 
 	if topic == "" {
 		return nil, errors.NewCommonEdgeX(errors.KindContractInvalid, "topic cannot be empty", nil)
@@ -46,7 +47,7 @@ func (pool *TopicManagerPool) GetReplyTopicManager(
 		return rtm, nil
 	}
 
-	subscriptionCtx, cancelFunc := context.WithCancel(context.Background())
+	subscriptionCtx, cancelFunc := context.WithCancel(ctx)
 	manager := newReplyTopicManager(topic, messageBus, lc, cancelFunc)
 
 	if err := manager.subscribe(subscriptionCtx); err != nil {
@@ -62,7 +63,8 @@ func (pool *TopicManagerPool) GetReplyTopicManager(
 func (pool *TopicManagerPool) GetDispatcherTopicManager(
 	topic string,
 	messageBus messaging.MessageClient,
-	lc logger.LoggingClient) (*DispatcherTopicManager, errors.EdgeX) {
+	lc logger.LoggingClient,
+	ctx context.Context) (*DispatcherTopicManager, errors.EdgeX) {
 
 	if topic == "" {
 		return nil, errors.NewCommonEdgeX(errors.KindContractInvalid, "topic cannot be empty", nil)
@@ -81,7 +83,7 @@ func (pool *TopicManagerPool) GetDispatcherTopicManager(
 		return dtm, nil
 	}
 
-	subscriptionCtx, cancelFunc := context.WithCancel(context.Background())
+	subscriptionCtx, cancelFunc := context.WithCancel(ctx)
 	manager := newDispatcherTopicManager(topic, messageBus, lc, cancelFunc)
 
 	if err := manager.subscribe(subscriptionCtx); err != nil {
