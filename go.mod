@@ -3,7 +3,7 @@ module github.com/IOTechSystems/go-mod-edge-connect-client/v4
 go 1.25.0
 
 require (
-	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.98
+	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.99
 	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.1.0-dev.39
 	github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.21
 )
@@ -30,7 +30,7 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	go.einride.tech/can v0.17.0 // indirect
 	golang.org/x/crypto v0.52.0 // indirect
-	golang.org/x/net v0.54.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
