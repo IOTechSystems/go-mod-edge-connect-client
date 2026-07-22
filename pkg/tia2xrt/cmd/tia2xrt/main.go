@@ -7,18 +7,18 @@
 
 // Flags:
 
-// 	-d, -db N          Data block number (default 1)
-// 	-o, -output FILE   Output JSON file (default: stdout)
-// 	-profile-name NAME Override profile name (default: block name from source)
-// 	-allow-optimized   Suppress error for optimised-access blocks
+// -d, -db N          Data block number (default 1)
+// -o, -output FILE   Output JSON file (default: stdout)
+// -profile-name NAME Override profile name (default: block name from source)
+// -allow-optimized   Suppress error for optimised-access blocks
 package main
 
 import (
 	"flag"
 	"fmt"
 	"os"
-	"regexp"
 	"path/filepath"
+	"regexp"
 
 	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/tia2xrt"
 )
