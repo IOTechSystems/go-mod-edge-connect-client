@@ -49,7 +49,13 @@ func main() {
 			"  tia2xrt MyBlock.scl -db 5 -o profile.json\n"+
 			"  tia2xrt MyBlock.scl -db 2 -profile-name mixing_db\n")
 	}
-	flag.CommandLine.Parse(os.Args[2:])
+
+	err := flag.CommandLine.Parse(os.Args[2:])
+
+	if err != nil {
+		flag.Usage()
+		os.Exit(1)
+	}
 
 	flag.Parse()
 
@@ -99,7 +105,7 @@ func main() {
 	}
 
 	if outputFile != "" {
-		if err := os.WriteFile(outputFile, out, 0o644); err != nil {
+		if err := os.WriteFile(outputFile, out, 0o600); err != nil {
 			fmt.Fprintf(os.Stderr, "Error writing '%s': %v\n", outputFile, err)
 			os.Exit(1)
 		}
