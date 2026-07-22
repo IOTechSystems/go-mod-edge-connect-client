@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"path/filepath"
 
 	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/tia2xrt"
 )
@@ -65,7 +66,7 @@ func main() {
 	}
 
 	inputFile := flag.Arg(0)
-	data, err := os.ReadFile(inputFile)
+	data, err := os.ReadFile(filepath.Clean(inputFile))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading '%s': %v\n", inputFile, err)
 		os.Exit(1)
