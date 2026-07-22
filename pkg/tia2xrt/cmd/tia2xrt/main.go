@@ -19,7 +19,7 @@ import (
 	"os"
 	"regexp"
 
-	"tia2xrt"
+	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/tia2xrt"
 )
 
 func main() {
@@ -64,12 +64,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error reading '%s': %v\n", inputFile, err)
 		os.Exit(1)
 	}
-
-	// print 
-	fmt.Println("Input file: " + inputFile)
-	fmt.Println("Output file: " + outputFile)
-	fmt.Println("Data Block: ", dbNumber)
-	
 
 	blockName, isOptimized, variables := tia2xrt.ParseSCL(string(data))
 
