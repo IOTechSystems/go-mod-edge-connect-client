@@ -1,0 +1,326 @@
+$ =============================================================================
+$  COVERAGE synthetic EDS - designed to MAXIMIZE converter test coverage
+$  (NOT a real device)
+$ =============================================================================
+$
+$  WARNING: fully hand-written/synthetic. All identity values are placeholders.
+$  Purpose: make every EDS -> XRT profile converter path fire from a single
+$  file, so it can serve as a golden unit-test baseline.
+$
+$  Intentional coverage:
+$    [A] Every CIP data type code (S2.7): C1..CB, D0..D4, DA  -> see [Params]
+$    [B] Bidirectional I/O + both readWrite directions (S4.4):
+$          O2T-only = W (DO0..2, SINT, INT, DINT, REAL, Mode)
+$          T2O-only = R (LINT, ULINT, LREAL, USINT, WORD, DWORD)
+$          both O2T+T2O (Setpoint / Param24, in Assem100 AND Assem101) -> TWO
+$          resources: an O2T one (W) and a T2O one (R), not a single RW resource
+$    [C] Assembly member offset accumulation (S4.3): BOOL bit packing, pad
+$          alignment, natural byte alignment, multi-byte types, byte crossing
+$          -- offsets are validated (see appendix at end of file)
+$    [D] Two member-size styles: explicit bit count vs empty (use Param Data Size)
+$    [E] pad/reserved param: occupies offset but produces NO resource (S4.2, S2.8)
+$    [F] Enum sub-entry (S2.4.1) -> a DeviceCommand whose resourceOperation
+$        carries value->label mappings (Param9/Enum9 -> "Output Mode" command)
+$    [G] Scaling (mult/div/base/offset, S2.4) -> properties.scale/base/offset
+$    [H] min/max/default (typed per DATATYPE_REF, S2.4)
+$    [I] Config assembly (S3.1 (1)) -> ConfigSettings resource
+$    [J] Explicit messaging via [Params] Link Path (S4.5) -> objClass/instID/attrID
+$    [K] Unknown keyword / non-core sections: parser must ignore, not error
+$    [L] valueType casing normalization unaffected (type comes from code, not text)
+$ =============================================================================
+
+[File]
+    DescText   = "COVERAGE synthetic EDS - exercises every converter path";
+    CreateDate = 07-22-2026;
+    CreateTime = 00:00:00;
+    ModDate    = 07-22-2026;
+    ModTime    = 00:00:00;
+    Revision   = 1.0;
+    HomeURL    = "https://example.invalid/coverage.eds";   $ [K] non-core field
+
+[Device]
+    VendCode    = 9999;                 $ placeholder
+    VendName    = "Coverage Test Vendor";
+    ProdType    = 7;                    $ 7 = General Purpose Discrete I/O
+    ProdTypeStr = "Coverage Test Device";
+    ProdCode    = 4242;
+    MajRev      = 3;
+    MinRev      = 14;
+    ProdName    = "EtherNetIP Sample";  $ -> profile.model / name (needs sanitizing)
+    Catalog     = "EtherNetIP Sample";
+    Icon        = "coverage.ico";
+
+[Device Classification]
+    Class1 = EtherNetIP;
+
+$ [K] unknown / vendor-specific keyword -- parser must ignore, not error
+    Vendor_Custom_Flag = 0xABCD1234;
+
+$ *********************************************************************************
+$ [Params] -- covers every CIP type + enum + scaling + Link Path explicit
+$ *********************************************************************************
+[Params]
+
+$ ---- [B] O2T (Output, writable W) members ----
+    $ [A] BOOL 0xC1
+    Param1 = 0,,,0x0000,0xC1,1,"DO Channel 0","","Digital output 0";
+    Param2 = 0,,,0x0000,0xC1,1,"DO Channel 1","","Digital output 1";
+    Param3 = 0,,,0x0000,0xC1,1,"DO Channel 2","","Digital output 2";
+
+    $ [E] pad: 5 bits to fill byte0 -- name marked RESERVED, produces NO resource
+    Param4 = 0,,,0x0000,0xC1,1,"RESERVED_pad5","","pad - not a resource";
+
+    $ [A] SINT 0xC2 (8-bit signed) -- description quotes a comma to exercise
+    $     the "comma inside quotes is not a field separator" parser rule
+    Param5 = 0,,,0x0000,0xC2,1,"Output SINT","counts","signed, 8-bit output",-128,127,0;
+
+    $ [A] INT 0xC3 (16-bit signed) + [G] scaling (mult=1 div=10 -> scale 0.1) + [H] min/max/default
+    $     spans several lines with no continuation char — the ";" alone ends it
+    Param6 =
+        0,,,0x0000,
+        0xC3,2,
+        "Output INT scaled","deg","16-bit signed with scaling",
+        -3200,3200,0,               $ [H] min,max,default
+        1,10,0,0,                   $ [G] mult,div,base,offset -> scale=0.1
+        ,,,,
+        ;
+
+    $ [A] DINT 0xC4 (32-bit signed)
+    Param7 = 0,,,0x0000,0xC4,4,"Output DINT","steps","32-bit signed",-2000000,2000000,0;
+
+    $ [A] REAL 0xCA (32-bit float)
+    Param8 = 0,,,0x0000,0xCA,4,"Output REAL","V","32-bit float";
+
+    $ [A] UINT 0xC7 (16-bit unsigned) + [F] enum
+    Param9 =
+        0,,,0x0010,                 $ Descriptor bit4=1 -> supports enumeration
+        0xC7,2,
+        "Output Mode","","enumerated mode select",
+        0,3,0;
+    Enum9 =
+        0,"Idle",
+        1,"Run",
+        2,"Jog",
+        3,"Home";
+
+$ ---- [B] T2O (Input, read-only R) members ----
+    $ [A] LINT 0xC5 (64-bit signed)
+    Param10 = 0,,,0x0000,0xC5,8,"Input LINT","","64-bit signed input";
+    $ [A] ULINT 0xC9 (64-bit unsigned)
+    Param11 = 0,,,0x0000,0xC9,8,"Input ULINT","","64-bit unsigned input";
+    $ [A] LREAL 0xCB (64-bit float)
+    Param12 = 0,,,0x0000,0xCB,8,"Input LREAL","","64-bit float input";
+    $ [A] USINT 0xC6 (8-bit unsigned)
+    Param13 = 0,,,0x0000,0xC6,1,"Input USINT","","8-bit unsigned input",0,255,0;
+    $ [E] pad 8-bit (for byte alignment) -- produces NO resource
+    Param14 = 0,,,0x0000,0xC6,1,"RESERVED_pad8","","pad - not a resource";
+    $ [A] WORD 0xD2 (16-bit bit string)
+    Param15 = 0,,,0x0000,0xD2,2,"Input WORD","","16-bit bit string";
+    $ [A] DWORD 0xD3 (32-bit bit string)
+    Param16 = 0,,,0x0000,0xD3,4,"Input DWORD","","32-bit bit string";
+
+$ ---- [I] Config assembly members ----
+    $ [A] UDINT 0xC8 (32-bit unsigned) -- also referenced by [Connection Manager] RPI
+    Param17 = 0,,,0x0000,0xC8,4,"RPI","us","Requested Packet Interval",1000,3200000,10000;
+    $ [A] BYTE 0xD1 (8-bit bit string)
+    Param18 = 0,,,0x0000,0xD1,1,"Config Flags","","8-bit config bitfield";
+    $ [A] LWORD 0xD4 (64-bit bit string)
+    Param19 = 0,,,0x0000,0xD4,8,"Config Mask","","64-bit bit string";
+
+$ ---- [A] String types (cover D0 / DA) as explicit-messaging resources ----
+$   Both carry a Link Path so they become explicit resources (S4.5) and the
+$   D0/DA conversion paths actually run (a Param with no assembly ref and no
+$   Link Path would produce NO resource -- see Param selection rule S4.2).
+    $ STRING 0xD0 -- Link Path 20 01 24 01 30 07 -> Identity/1/7 (ProductName)
+    Param20 =
+        0,
+        6,                          $ [1] Link Path Size = 6 bytes
+        "20 01 24 01 30 07",        $ [2] Link Path -> Identity/1/7
+        0x0000,
+        0xD0,32,                    $ STRING
+        "Device Tag","","STRING attribute via explicit";
+    $ SHORT_STRING 0xDA -- Link Path 20 67 24 01 30 01 -> class 0x67/1/1 (vendor obj)
+    Param21 =
+        0,
+        6,                          $ [1] Link Path Size = 6 bytes
+        "20 67 24 01 30 01",        $ [2] Link Path -> objClass=0x67, instID=1, attrID=1
+        0x0000,
+        0xDA,16,                    $ SHORT_STRING
+        "Short Label","","SHORT_STRING attribute via explicit";
+
+$ ---- [B] Shared point: referenced by BOTH O2T (Assem100) and T2O (Assem101) ----
+$   Same param in an output AND an input assembly -> TWO resources: O2T (W) and
+$   T2O (R), direction-suffixed on the name collision (S4.4).
+    $ INT 0xC3 -- setpoint written via O2T, read back via T2O
+    Param24 = 0,,,0x0000,0xC3,2,"Setpoint","deg","RW: written O2T, read back T2O",-3200,3200,0;
+
+$ ---- [J] Explicit messaging: Params with a Link Path (S4.5) ----
+    $ Link Path = 20 01 24 01 30 07 -> objClass=1 (Identity), instID=1, attrID=7 (ProductName)
+    $ field[1]=Link Path Size (bytes), field[2]=Link Path (EPATH)
+    Param22 =
+        0,
+        6,                          $ [1] Link Path Size = 6 bytes
+        "20 01 24 01 30 07",        $ [2] Link Path -> Identity/1/7
+        0x0000,
+        0xD0,32,                    $ STRING
+        "ProductName (explicit)","","Identity object Product Name via explicit";
+
+    $ Link Path = 20 01 24 01 30 06 -> objClass=1, instID=1, attrID=6 (SerialNumber)
+    Param23 =
+        0,
+        6,
+        "20 01 24 01 30 06",
+        0x0000,
+        0xC8,4,                     $ UDINT
+        "SerialNumber (explicit)","","Identity object Serial Number via explicit";
+
+$ *********************************************************************************
+$ [Assembly] -- [C] offset accumulation + [D] two size styles + [E] pad
+$   Offsets validated by script; see appendix at end of file.
+$ *********************************************************************************
+[Assembly]
+    Object_Name       = "Assembly Object";
+    Object_Class_Code = 0x04;
+    Revision          = 2;
+
+    $ --- O2T Output Assembly (instance 0x64=100, size 16 bytes) ---
+    $ [D] EXPLICIT bit counts here (shows explicit member size + BOOL packing + pad)
+    Assem100 =
+        "Output Assembly",
+        "20 04 24 64 30 03",        $ Path -> Class4, Instance 0x64=100, Attr3
+        16,                         $ Size = 16 bytes (validated)
+        0x0001,                     $ Descriptor - editable
+        , ,
+        1,  Param1,                 $ DO0     bit0    (byte0.0)
+        1,  Param2,                 $ DO1     bit1    (byte0.1)
+        1,  Param3,                 $ DO2     bit2    (byte0.2)
+        5,  Param4,                 $ [E] pad bit3-7  (byte0.3) no resource
+        8,  Param5,                 $ SINT    byte1
+        16, Param6,                 $ INT     byte2-3 (scaled)
+        32, Param7,                 $ DINT    byte4-7
+        32, Param8,                 $ REAL    byte8-11
+        16, Param9,                 $ UINT    byte12-13 (enum)
+        16, Param24;                $ INT     byte14-15 (O2T W side; also in Assem101)
+
+    $ --- T2O Input Assembly (instance 0x65=101, size 34 bytes) ---
+    $ [D] EMPTY member size here (shows the "use Param Data Size" fallback path)
+    Assem101 =
+        "Input Assembly",
+        "20 04 24 65 30 03",        $ Path -> Instance 0x65=101
+        34,                         $ Size = 34 bytes (validated)
+        0x0000,                     $ Descriptor - read only
+        , ,
+        , Param10,                  $ LINT   byte0-7    (empty size -> 8 bytes)
+        , Param11,                  $ ULINT  byte8-15
+        , Param12,                  $ LREAL  byte16-23
+        , Param13,                  $ USINT  byte24
+        , Param14,                  $ [E] pad byte25    no resource
+        , Param15,                  $ WORD   byte26-27
+        , Param16,                  $ DWORD  byte28-31
+        , Param24;                  $ INT    byte32-33  (T2O R side; also in Assem100)
+
+    $ --- [I] Config Assembly (instance 0x6E=110) ---
+    Assem110 =
+        "Config Assembly",
+        "20 04 24 6E 30 03",        $ Path -> Instance 0x6E=110
+        13,                         $ Size = 4+1+8 = 13 bytes
+        0x0001,                     $ editable
+        , ,
+        32, Param17,                $ RPI (UDINT)   byte0-3
+        8,  Param18,                $ Config Flags  byte4
+        64, Param19;                $ Config Mask   byte5-12
+
+$ *********************************************************************************
+$ [Connection Manager] -- [B] direction inference source
+$   Connection1: O2T->Assem100 (W), T2O->Assem101 (R), config->Assem110
+$ *********************************************************************************
+[Connection Manager]
+    Object_Name       = "Connection Manager Object";
+    Object_Class_Code = 0x06;
+
+    Connection1 =
+        0x04010002,                 $ [0] trigger & transport (Class1, cyclic, exclusive-owner)
+        0x44640405,                 $ [1] params: O2T fixed + 32-bit run/idle header
+                                    $      -> O2TSettings.includeHeader32bit = true (S2.6.1)
+        Param17, 16, Assem100,      $ [2][3][4] O2T RPI/Size/Format -> Assem100 (writable W)
+        Param17, 34, Assem101,      $ [5][6][7] T2O RPI/Size/Format -> Assem101 (read-only R)
+        , ,                         $ [8][9] Proxy config
+        , Assem110,                 $ [10][11] Target config -> Assem110 (ConfigSettings)
+        "Coverage IO Connection",   $ [12] name
+        "Exercises O2T/T2O/config in one connection",  $ [13] help
+        "20 04 24 6E 2C 64 2C 65";  $ [14] connection path
+
+$ *********************************************************************************
+$ [Capacity] / [Ethernet Link Class] -- [K] non-core sections, parser should ignore
+$ *********************************************************************************
+[Capacity]
+    MaxCIPConnections = 4;
+    TSpec1 = TxRx, 32, 1000;
+
+[Ethernet Link Class]
+    Revision = 3;
+    MaxInst  = 2;
+    Number_Of_Static_Instances  = 2;
+    Max_Number_Of_Dynamic_Instances = 0;
+    Class_Attributes =                  $ [K] comma-separated multi-value list -- parser must skip cleanly
+        1,
+        2,
+        3,
+        6,
+        7;
+    Instance_Attributes =
+        1,
+        2,
+        3,
+        6,
+        7,
+        8,
+        10;
+    Class_Services    = 0x0E;           $ hex value in a to-be-ignored section
+    Instance_Services =
+        0x0E,
+        0x10;
+    InterfaceLabel1 = "Port 1";
+    InterfaceLabel2 = "Port 2";
+    InterfaceType1  = 2;
+    InterfaceType2  = 2;
+
+$ =============================================================================
+$  APPENDIX: offset validation (golden assertion reference)
+$  ---------------------------------------------------------------------------
+$  Assem100 (O2T, size=16):
+$    DO0          byte0  bit0  BOOL  -> W
+$    DO1          byte0  bit1  BOOL  -> W
+$    DO2          byte0  bit2  BOOL  -> W
+$    (pad 5 bits) byte0  bit3  -- no resource
+$    Output SINT  byte1        SINT  -> W
+$    Output INT   byte2        INT   (scale=0.1) -> W
+$    Output DINT  byte4        DINT  -> W
+$    Output REAL  byte8        REAL  -> W
+$    Output Mode  byte12       UINT  (enum 0..3) -> W
+$    Setpoint     byte14       INT   -> W  (Param24 O2T side; T2O side in Assem101)
+$
+$  Assem101 (T2O, size=34):
+$    Input LINT   byte0        LINT  -> R
+$    Input ULINT  byte8        ULINT -> R
+$    Input LREAL  byte16       LREAL -> R
+$    Input USINT  byte24       USINT -> R
+$    (pad 8 bits) byte25       -- no resource
+$    Input WORD   byte26       WORD  -> R
+$    Input DWORD  byte28       DWORD -> R
+$    Setpoint_T2O byte32       INT   -> R  (Param24 T2O side; O2T side in Assem100)
+$
+$  Assem110 (Config, size=13):
+$    RPI          byte0        UDINT
+$    Config Flags byte4        BYTE
+$    Config Mask  byte5        LWORD
+$
+$  Explicit (from Link Path, no offset):
+$    Param20 -> objClass=1    instID=1 attrID=7  STRING        (Device Tag / ProductName)
+$    Param21 -> objClass=0x67 instID=1 attrID=1  SHORT_STRING  (Short Label)
+$    Param22 -> objClass=1    instID=1 attrID=7  STRING        (ProductName)
+$    Param23 -> objClass=1    instID=1 attrID=6  UDINT         (SerialNumber)
+$
+$  Enum (DeviceCommand with resourceOperation.mappings):
+$    Param9/Enum9 -> "Output Mode" command -> {0:Idle, 1:Run, 2:Jog, 3:Home}
+$ =============================================================================

@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.100
-	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.1.0-dev.39
+	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.1.0-dev.40
 	github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.21
 )
 
