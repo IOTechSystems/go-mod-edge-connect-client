@@ -159,7 +159,8 @@ func parse(r io.Reader) (*eds, errors.EdgeX) {
 
 // consumeLine processes one physical line: it rejects an unbalanced quote,
 // dispatches a section header, skips a blank line, or accumulates the line into
-// the current statement and flushes it on an unquoted ";".
+// the pending statement — splitting out any statements it completes once the
+// line contains an unquoted ";".
 func consumeLine(e *eds, cur **section, buf *strings.Builder, raw string, lineNo int) errors.EdgeX {
 	line := stripComment(raw) // "$" comment runs to end of line
 
@@ -194,10 +195,39 @@ func consumeLine(e *eds, cur **section, buf *strings.Builder, raw string, lineNo
 	if !hasSemicolon {
 		return nil
 	}
+	return splitStatements(cur, buf)
+}
 
-	stmt := strings.TrimSpace(buf.String())
+// splitStatements divides the accumulated buffer on unquoted ";" and adds each
+// complete statement, so a line packing several (e.g. "A = 1; B = 2;") yields
+// one entry per statement rather than merging them. Content after the last ";"
+// is a statement still awaiting its terminator; it is kept in buf to continue
+// accumulating on the next line.
+func splitStatements(cur **section, buf *strings.Builder) errors.EdgeX {
+	text := buf.String()
 	buf.Reset()
-	return addStatement(cur, stmt)
+
+	start := 0
+	inQuote := false
+	backslashes := 0
+	for i, r := range text {
+		switch {
+		case isUnescapedQuote(r, backslashes):
+			inQuote = !inQuote
+		case r == ';' && !inQuote:
+			if err := addStatement(cur, strings.TrimSpace(text[start:i])); err != nil {
+				return err
+			}
+			start = i + len(";")
+		}
+		backslashes = runBackslashes(backslashes, r)
+	}
+	// Keep any post-";" remainder to continue on the next physical line.
+	if rest := strings.TrimSpace(text[start:]); rest != "" {
+		buf.WriteString(rest)
+		buf.WriteString(" ")
+	}
+	return nil
 }
 
 // handleSectionHeader consumes trimmed if it is a "[...]" section header,

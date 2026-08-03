@@ -205,6 +205,67 @@ func TestParseSemicolonInsideQuotesNotTerminator(t *testing.T) {
 	assertDeviceAFields(t, src, []string{"desc; more", "42", "99"})
 }
 
+// A physical line may pack several ";"-terminated statements; each becomes its
+// own entry rather than being merged into the first statement's last field. A
+// statement whose ";" comes on a later line still accumulates across the break.
+func TestParseMultipleStatementsPerLine(t *testing.T) {
+	tests := []struct {
+		name string
+		src  string
+		want [][]string // per entry: keyword followed by its fields
+	}{
+		{"two on one line", "[Device]\n    A = 1; B = 2;\n",
+			[][]string{{"A", "1"}, {"B", "2"}}},
+		{"three on one line", "[Device]\n    A = 1; B = 2; C = 3;\n",
+			[][]string{{"A", "1"}, {"B", "2"}, {"C", "3"}}},
+		{"second statement spans lines", "[Device]\n    A = 1; B =\n        2;\n",
+			[][]string{{"A", "1"}, {"B", "2"}}},
+		{"third statement spans lines", "[Device]\n    A = 1; B = 2; C =\n        3;\n",
+			[][]string{{"A", "1"}, {"B", "2"}, {"C", "3"}}},
+		{"empty statement between separators", "[Device]\n    A = 1;; B = 2;\n",
+			[][]string{{"A", "1"}, {"B", "2"}}},
+		{"semicolon inside quotes is not a split", "[Device]\n    A = \"x; y\";\n",
+			[][]string{{"A", "x; y"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e, err := parse(strings.NewReader(tt.src))
+			if err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+			assertParsedEntries(t, e.section(sectionDevice).entries, tt.want)
+		})
+	}
+}
+
+// assertParsedEntries checks that entries match want, where each want row is a
+// keyword followed by its expected fields.
+func assertParsedEntries(t *testing.T, entries []*entry, want [][]string) {
+	t.Helper()
+	if len(entries) != len(want) {
+		t.Fatalf("entries: got %d, want %d", len(entries), len(want))
+	}
+	for i, w := range want {
+		assertEntry(t, i, entries[i], w[0], w[1:])
+	}
+}
+
+// assertEntry checks one entry's keyword and fields.
+func assertEntry(t *testing.T, i int, en *entry, keyword string, fields []string) {
+	t.Helper()
+	if en.keyword != keyword {
+		t.Errorf("entry %d keyword: got %q, want %q", i, en.keyword, keyword)
+	}
+	if len(en.fields) != len(fields) {
+		t.Fatalf("entry %d fields: got %q, want %q", i, en.fields, fields)
+	}
+	for j := range fields {
+		if en.fields[j] != fields[j] {
+			t.Errorf("entry %d field %d: got %q, want %q", i, j, en.fields[j], fields[j])
+		}
+	}
+}
+
 // Regression: a statement not terminated by ";" before EOF must be
 // reported, not silently dropped.
 func TestParseUnterminatedStatementAtEOFErrors(t *testing.T) {
