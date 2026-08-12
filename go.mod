@@ -3,7 +3,7 @@ module github.com/IOTechSystems/go-mod-edge-connect-client/v4
 go 1.25.0
 
 require (
-	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.100
+	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.104
 	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.1.0-dev.40
 	github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.21
 )
@@ -17,6 +17,7 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.30.3 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
