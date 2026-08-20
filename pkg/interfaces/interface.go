@@ -25,11 +25,25 @@ type EdgeClient interface {
 	ReadDeviceResources(ctx context.Context, deviceName string, resourceNames []string) (xrtmodels.MultiResourcesResult, errors.EdgeX)
 	WriteDeviceResources(ctx context.Context, deviceName string, resourceValuePairs, options map[string]any) errors.EdgeX
 
+	BatchReadAllDevices(ctx context.Context) ([]*xrtmodels.DeviceInfo, errors.EdgeX)
+	BatchReadDevicesByNames(ctx context.Context, names []string) ([]*xrtmodels.DeviceInfo, errors.EdgeX)
+	BatchReadDevicesByPattern(ctx context.Context, pattern string) ([]*xrtmodels.DeviceInfo, errors.EdgeX)
+	BatchAddDevices(ctx context.Context, devices []dtos.Device) ([]xrtmodels.BatchItemResult, errors.EdgeX)
+	BatchDeleteDevices(ctx context.Context, names []string) ([]xrtmodels.BatchItemResult, errors.EdgeX)
+
 	AllSchedules(ctx context.Context) ([]string, errors.EdgeX)
 	AddSchedule(ctx context.Context, schedule xrtmodels.Schedule) errors.EdgeX
 	DeleteScheduleByName(ctx context.Context, scheduleName string) errors.EdgeX
 	ScheduleByName(ctx context.Context, name string) (xrtmodels.Schedule, errors.EdgeX)
 	UpdateSchedule(ctx context.Context, schedule xrtmodels.Schedule) errors.EdgeX
+
+	BatchReadAllSchedules(ctx context.Context) ([]*xrtmodels.Schedule, errors.EdgeX)
+	BatchReadSchedulesByNames(ctx context.Context, names []string) ([]*xrtmodels.Schedule, errors.EdgeX)
+	BatchReadSchedulesByDevice(ctx context.Context, deviceName string) ([]*xrtmodels.Schedule, errors.EdgeX)
+	BatchReadSchedulesByPattern(ctx context.Context, pattern string) ([]*xrtmodels.Schedule, errors.EdgeX)
+	BatchAddSchedules(ctx context.Context, schedules []xrtmodels.Schedule) ([]xrtmodels.BatchItemResult, errors.EdgeX)
+	BatchDeleteSchedulesByNames(ctx context.Context, names []string) ([]xrtmodels.BatchItemResult, errors.EdgeX)
+	BatchDeleteSchedulesByDevice(ctx context.Context, deviceName string) ([]xrtmodels.BatchItemResult, errors.EdgeX)
 
 	AllDeviceProfiles(ctx context.Context) ([]string, errors.EdgeX)
 	DeviceProfileByName(ctx context.Context, name string) (dtos.DeviceProfile, errors.EdgeX)
