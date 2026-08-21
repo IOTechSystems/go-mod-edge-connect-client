@@ -1,6 +1,10 @@
 tia2xrt converts a Siemens TIA Portal V16 data block SCL source export
 to an XRT S7 device profile JSON file.
 
+Build:
+
+	go build -o tia2xrt ./cmd/tia2xrt
+
 Usage:
 
 	tia2xrt <input_filename> [flags]

@@ -1,4 +1,4 @@
-// Package tia2xrt converts Siemens TIA Portal V16 data block SCL source
+// Package tia converts Siemens TIA Portal V16 data block SCL source
 // exports to XRT S7 device profile JSON files.
 //
 // Supported TIA types:
@@ -11,7 +11,7 @@
 //   - IEC counters: IEC_*COUNTER variants
 //
 // Only non-optimised (standard-access) data blocks produce correct byte offsets.
-package tia2xrt
+package tia
 
 import (
 	"encoding/json"

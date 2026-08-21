@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/tia2xrt"
+	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/profileconv/tia"
 )
 
 func main() {
@@ -72,7 +72,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	blockName, isOptimized, variables := tia2xrt.ParseSCL(string(data))
+	blockName, isOptimized, variables := tia.ParseSCL(string(data))
 
 	if isOptimized && !*allowOptimized {
 		fmt.Fprintln(os.Stderr, "Error: block has S7_Optimized_Access := 'TRUE'.")
@@ -90,7 +90,7 @@ func main() {
 		name = regexp.MustCompile(`[^a-zA-Z0-9_\-]`).ReplaceAllString(blockName, "_")
 	}
 
-	profile, warnings := tia2xrt.BuildProfile(name, dbNumber, variables)
+	profile, warnings := tia.BuildProfile(name, dbNumber, variables)
 
 	for _, w := range warnings {
 		fmt.Fprintf(os.Stderr, "Warning: %s\n", w)
@@ -99,7 +99,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Warning: no device resources were generated – check the input file.")
 	}
 
-	out, err := tia2xrt.MarshalProfile(profile)
+	out, err := tia.MarshalProfile(profile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error marshaling JSON: %v\n", err)
 		os.Exit(1)
