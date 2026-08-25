@@ -7,15 +7,19 @@ Build:
 
 Usage:
 
-	tia2xrt <input_filename> [flags]
+	tia2xrt [flags] <input.scl>
 
 Flags:
 
 	-d, -db N          Data block number (default 1)
-	-o, -output FILE   Output JSON file (default: stdout)
+	-o, -output FILE   Output JSON file (default: <profile name>.json)
 	-profile-name NAME Override profile name (default: block name from source)
-	-allow-optimized   Suppress error for optimised-access blocks
+
+Optimized-access data blocks are rejected: TIA Portal decides their layout
+internally, so byte offsets cannot be derived from the declaration order. Turn
+off "Optimized block access" in the block properties and re-export.
 
 Examples:
-    tia2xrt MyInput.txt -db 5 -o profile.json
-    tia2xrt MyBlock.db -db 2 -profile-name mixing_db
+
+	tia2xrt -db 5 -o profile.json MyBlock.scl
+	tia2xrt -db 2 -profile-name mixing_db MyBlock.scl   # writes mixing_db.json

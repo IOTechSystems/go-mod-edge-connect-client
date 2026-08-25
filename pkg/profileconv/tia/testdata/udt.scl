@@ -1,10 +1,8 @@
-// UDT (user-defined PLC data type) coverage.
+// UDT (user-defined PLC data type) coverage. Synthetic, not a real data block.
 //
-// This file locks a HIGH-PRIORITY bug: the current implementation
-// scans for the FIRST `STRUCT` line and breaks, so it treats udt_Motor's members
-// as the data block's own contents and emits a profile for the WRONG block --
-// silently, with plausible-looking offsets. `blockName` becoming "UnknownBlock"
-// is the only hint.
+// Keying the parse off the first `STRUCT` line would build the profile from
+// udt_Motor's members instead of the data block's -- silently, with
+// plausible-looking offsets. This file locks that out.
 //
 // Coverage:
 //   [A] TYPE appears BEFORE DATA_BLOCK (the natural export order: a definition
@@ -16,14 +14,10 @@
 //   [D] udt_Station is DEFINED BEFORE the UDT it depends on, proving phase 1
 //       must not resolve eagerly
 //   [E] The same UDT referenced more than once (m1/m2) -- name de-duplication
-//   [F] END_TYPE as a block boundary (the parser currently only knows
-//       END_STRUCT / BEGIN / END_DATA_BLOCK)
-//   [G] Quoted type name on the type side (quotes are currently only
-//       stripped from the variable-name side)
+//   [F] END_TYPE as a block boundary
+//   [G] Quoted type name on the type side
 //
-// Current support level is SKIP: compute the size, advance the offset, emit no
-// resource. The type table must still store the MEMBER LIST (not just a size)
-// so flattening can be added later without rewriting the parse.
+// Support level is SKIP: compute the size, advance the offset, emit no resource.
 
 // [D] defined first, but depends on udt_Motor below
 TYPE "udt_Station"
@@ -87,14 +81,6 @@ END_DATA_BLOCK
 //    ---------------------------------
 //    total block size            84
 //
-//  Expected: 2 resources (lead_in @0, tail @82).
-//  If `tail` is anywhere other than 82, UDT sizing is wrong.
-//  If the profile is named "UnknownBlock" or contains Speed/Running/Name as
-//  top-level resources, that bug has regressed.
-//
-//  When flattening is added later, the same file should instead yield:
-//    lead_in, motor_Speed, motor_Running, motor_Name,
-//    station_m1_Speed, station_m1_Running, station_m1_Name,
-//    station_m2_Speed, station_m2_Running, station_m2_Name,
-//    station_station_id, tail   = 12 resources
+//  Expected: 2 resources (lead_in @0, tail @82). tail's offset is what proves
+//  both UDT sizes: any other value means the sizing is wrong.
 // =============================================================================

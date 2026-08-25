@@ -1,12 +1,10 @@
 // =============================================================================
-//  COVERAGE synthetic TIA Portal DB source - designed to MAXIMIZE converter
-//  test coverage (NOT a real data block)
+//  Coverage fixture: a synthetic TIA Portal DB source, not a real data block.
 // =============================================================================
 //
-//  WARNING: fully hand-written/synthetic. Purpose: make every DB -> XRT profile
-//  converter path fire from a single file, so it can serve as a golden unit-test
-//  baseline. Offsets in the appendix follow the S7 non-optimised DB layout
-//  rules restated below.
+//  Hand-written so that one file exercises every path through the converter, and
+//  so it can serve as a golden baseline. The appendix lists the expected offset
+//  of every resource, derived by the S7 non-optimised layout rules restated below.
 //
 //  Intentional coverage:
 //    [A] Every supported scalar type  -> Int8..Uint64, Float32/64, String
@@ -19,12 +17,13 @@
 //          Char/WChar/DTL/LTime/DT/LDT/HW_DEVICE/CREF/ErrorStruct
 //    [F] IEC 61131-3 alias normalization : TOD and Time_Of_Day must take
 //          the SAME path and produce the same valueType
-//    [G] Date + Time_Of_Day now EMIT resources  -- they used to be skipped
+//    [G] Date and Time_Of_Day emit resources rather than being skipped
 //    [H] Arrays of every element width : only the first element is
 //          word-aligned, the rest are sequential
 //    [I] Bool arrays each start on a NEW EVEN byte  -- two adjacent bool
-//          arrays must NOT share the leftover bits of one byte
-//    [J] Array of String -> per-element size attribute
+//          arrays must NOT share the leftover bits of one byte; each is ONE
+//          resource with array_size, not one per element
+//    [J] Array of String -> ONE resource with size (per element) + array_size
 //    [K] Struct members are EACH word-aligned (opposite of arrays);
 //          struct closes with word-align padding; nested struct recurses
 //    [L] IEC_Timer -> Object, no timeBase
@@ -33,9 +32,11 @@
 //    [O] Attribute blocks { ... } stripped from both the name and the type side
 //    [P] Inline // comments -> resource description; block comments stripped
 //    [Q] BEGIN section (initial values) ignored entirely, incl. dot notation
+//    [R] ExternalWritable := 'False' -> readWrite R (on "q-name")
 //
-//  NOT covered here (must return an error -- use separate inline fixtures):
-//    unknown types, Array of Struct, UDT references, optimized-access blocks
+//  NOT covered here (each aborts the conversion -- see the inline fixtures in
+//  convert_test.go): unknown types, Array of Struct, undefined UDT references,
+//  optimized-access blocks
 // =============================================================================
 
 DATA_BLOCK "coverage_db"
@@ -117,7 +118,7 @@ NON_RETAIN
       a_bool1 : Array[0..2] of Bool;
       a_bool2 : Array[0..8] of Bool;    // 9 elements, spills across a byte
 
-      // [J] array of string: array_size=3, size=20 (per element)
+      // [J] array of string: ONE resource, array_size=3, size=20 (per element)
       a_str : Array[0..2] of String[20];
 
       // [K] struct: each member word-aligned, nested struct recurses
@@ -174,7 +175,7 @@ END_DATA_BLOCK
 //  Total block size: 644 bytes. Layout rules applied:
 //    - every type except Bool starts on an even (word) byte
 //    - 1-byte types (SInt/USInt/Byte) need no alignment
-//    - Bools are bit-packed, 8 per byte, LSB first; any non-Bool type closes
+//    - Bools are bit-packed, 8 per byte (bitIndex 0-7); any non-Bool type closes
 //      the current bool byte first
 //    - String[n] occupies 2+n bytes, rounded up to even
 //    - arrays: element_size x count, only the first element is word-aligned
@@ -230,12 +231,12 @@ END_DATA_BLOCK
 //  a_f64       LReal  x3     466            24
 //
 //  -- [I] bool arrays: each starts on a NEW EVEN byte ----------------------
-//  a_bool1     Bool   x3     490   bit 0..2
-//  a_bool2     Bool   x9     492   bit 0..7 then 493 bit 0
+//  a_bool1     Bool   x3     490   array_size=3, no bitIndex
+//  a_bool2     Bool   x9     492   array_size=9
 //              ^^^ 490 has 5 unused bits; a_bool2 must NOT reuse them
 //
 //  -- [J] array of string: array_size=3, size=20 (per element) -------------
-//  a_str       String[20] x3 494            66 (22 x 3)
+//  a_str       String[20] x3 494            66 (22 x 3), size=20 array_size=3
 //
 //  -- [K] struct: members EACH word-aligned, closes word-aligned -----------
 //  st.x        Int           560            2
@@ -265,18 +266,8 @@ END_DATA_BLOCK
 //   + 7 IEC timer/counters + 1 sanitized name (q_name)
 //    ... and 9 skip-type declarations that emit NOTHING.
 //
-//  -- what the CURRENT implementation gets wrong on this file --------------
-//  Verified 2026-08-21 by running cmd/tia2xrt against it. This file therefore
-//  doubles as a regression fixture -- it does NOT pass yet:
-//    - d / tod are SKIPPED instead of emitting resources
-//    - DTL / CREF / ErrorStruct hit the unknown-type branch and DO NOT advance
-//      the offset -> everything after them is misaligned
-//    - LDT advances 12 bytes instead of 8
-//    - a_bool2 reuses a_bool1 leftover bits (both start at the same byte)
-//    - arrays are emitted per element (a_bool1_0, a_bool1_1, ...) rather than
-//      one array resource carrying array_size
-//    - valueType is lower-case (int16 / bool / object) instead of the EdgeX
-//      constants (Int16 / Bool / Object)
-//    - IEC_SCOUNTER consumes 4 bytes instead of 3
-//  Result: 63 resources at wrong offsets, vs the 51 expected above.
+//  Every value above is asserted, resource by resource, in
+//  TestConvertSampleProfile -- so this appendix is an executable contract
+//  rather than a comment.
+//
 // =============================================================================

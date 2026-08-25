@@ -1,66 +1,41 @@
 // tia2xrt converts a Siemens TIA Portal V16 data block SCL source export
-// to an XRT S7 device profile JSON file.
-
-// Usage:
-
-// 	tia2xrt <input_filename> [flags]
-
-// Flags:
-
-// -d, -db N          Data block number (default 1)
-// -o, -output FILE   Output JSON file (default: stdout)
-// -profile-name NAME Override profile name (default: block name from source)
-// -allow-optimized   Suppress error for optimised-access blocks
+// to an XRT S7 device profile JSON file. See README.md for usage.
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
+
+	"github.com/edgexfoundry/go-mod-core-contracts/v4/clients/logger"
 
 	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/profileconv/tia"
 )
 
 func main() {
-
-	if len(os.Args) < 1 {
-		flag.Usage()
-		os.Exit(1)
-	}
-
 	var dbNumber int
 	flag.IntVar(&dbNumber, "db", 1, "Data block number to embed in resource attributes")
 	flag.IntVar(&dbNumber, "d", 1, "Alias for -db")
 
 	var outputFile string
-	flag.StringVar(&outputFile, "output", "", "Output JSON file (default: stdout)")
+	flag.StringVar(&outputFile, "output", "", "Output JSON file (default: <profile name>.json)")
 	flag.StringVar(&outputFile, "o", "", "Alias for -output")
 
 	profileName := flag.String("profile-name", "", "Override profile name (default: block name from source)")
-	allowOptimized := flag.Bool("allow-optimized", false,
-		"Continue even if optimized access is detected (byte offsets will be wrong)")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: tia2xrt [flags] <input.scl>\n\n"+
+		fmt.Fprint(os.Stderr, "Usage: tia2xrt [flags] <input.scl>\n\n"+
 			"Convert a TIA Portal V16 data block SCL source export to an XRT S7 device profile JSON.\n\nFlags:\n")
 		flag.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "\nExamples:\n"+
-			"  tia2xrt MyBlock.scl -db 5 -o profile.json\n"+
-			"  tia2xrt MyBlock.scl -db 2 -profile-name mixing_db\n")
 	}
-
-	err := flag.CommandLine.Parse(os.Args[2:])
-
-	if err != nil {
-		flag.Usage()
-		os.Exit(1)
-	}
-
 	flag.Parse()
 
-	if flag.NArg() < 1 {
+	// Flags must precede the input file; Go's flag package stops parsing at the
+	// first non-flag argument, so trailing flags would be silently ignored.
+	if flag.NArg() != 1 {
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -72,47 +47,32 @@ func main() {
 		os.Exit(1)
 	}
 
-	blockName, isOptimized, variables := tia.ParseSCL(string(data))
-
-	if isOptimized && !*allowOptimized {
-		fmt.Fprintln(os.Stderr, "Error: block has S7_Optimized_Access := 'TRUE'.")
-		fmt.Fprintln(os.Stderr, "Optimized blocks have no fixed absolute byte offsets; S7 symbolic addressing is not supported by XRT.")
-		fmt.Fprintln(os.Stderr, "Disable optimized access in TIA Portal (block properties → 'Optimized block access' → off) and re-export,")
-		fmt.Fprintln(os.Stderr, "or pass -allow-optimized to suppress this error.")
+	profile, edgexErr := tia.Convert(context.Background(), logger.NewClient("tia2xrt", "INFO"), data, map[string]any{
+		tia.OptionDBNumber:    dbNumber,
+		tia.OptionProfileName: *profileName,
+	})
+	if edgexErr != nil {
+		fmt.Fprintf(os.Stderr, "Error converting '%s': %v\n", inputFile, edgexErr)
 		os.Exit(1)
 	}
-	if isOptimized {
-		fmt.Fprintln(os.Stderr, "Warning: optimized-access block – byte offsets will be incorrect.")
-	}
 
-	name := *profileName
-	if name == "" {
-		name = regexp.MustCompile(`[^a-zA-Z0-9_\-]`).ReplaceAllString(blockName, "_")
-	}
-
-	profile, warnings := tia.BuildProfile(name, dbNumber, variables)
-
-	for _, w := range warnings {
-		fmt.Fprintf(os.Stderr, "Warning: %s\n", w)
-	}
-	if len(profile.DeviceResources) == 0 {
-		fmt.Fprintln(os.Stderr, "Warning: no device resources were generated – check the input file.")
-	}
-
-	out, err := tia.MarshalProfile(profile)
+	out, err := json.MarshalIndent(profile, "", "  ")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error marshaling JSON: %v\n", err)
 		os.Exit(1)
 	}
 
-	if outputFile != "" {
-		if err := os.WriteFile(outputFile, out, 0o600); err != nil {
-			fmt.Fprintf(os.Stderr, "Error writing '%s': %v\n", outputFile, err)
-			os.Exit(1)
-		}
-		fmt.Fprintf(os.Stderr, "Profile written to '%s' (%d resources).\n",
-			outputFile, len(profile.DeviceResources))
-	} else {
-		fmt.Println(string(out))
+	// The profile name is sanitised to [a-zA-Z0-9_-] by the converter, so it
+	// cannot escape the working directory.
+	if outputFile == "" {
+		outputFile = profile.Name + ".json"
 	}
+	// #nosec G703 -- writing to the path the operator passed via -o is this
+	// tool's purpose; there is no untrusted source for it.
+	if err := os.WriteFile(filepath.Clean(outputFile), out, 0o600); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing '%s': %v\n", outputFile, err)
+		os.Exit(1)
+	}
+	fmt.Fprintf(os.Stderr, "Profile written to '%s' (%d resources).\n",
+		outputFile, len(profile.DeviceResources))
 }
