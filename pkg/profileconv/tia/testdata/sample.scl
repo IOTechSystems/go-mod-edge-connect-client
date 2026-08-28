@@ -1,0 +1,273 @@
+// =============================================================================
+//  Coverage fixture: a synthetic TIA Portal DB source, not a real data block.
+// =============================================================================
+//
+//  Hand-written so that one file exercises every path through the converter, and
+//  so it can serve as a golden baseline. The appendix lists the expected offset
+//  of every resource, derived by the S7 non-optimised layout rules restated below.
+//
+//  Intentional coverage:
+//    [A] Every supported scalar type  -> Int8..Uint64, Float32/64, String
+//    [B] Bool bit-packing across a byte boundary : 9 consecutive bools
+//          spill into the next byte; the following Int closes the bool byte and
+//          word-aligns
+//    [C] 1-byte types are NOT word-aligned : u8 lands on an odd address
+//    [D] String[n] odd/even padding : 2+n rounded up to even
+//    [E] Skip types : no resource emitted, offset still advances --
+//          Char/WChar/DTL/LTime/DT/LDT/HW_DEVICE/CREF/ErrorStruct
+//    [F] IEC 61131-3 alias normalization : TOD and Time_Of_Day must take
+//          the SAME path and produce the same valueType
+//    [G] Date and Time_Of_Day emit resources rather than being skipped
+//    [H] Arrays of every element width : only the first element is
+//          word-aligned, the rest are sequential
+//    [I] Bool arrays each start on a NEW EVEN byte  -- two adjacent bool
+//          arrays must NOT share the leftover bits of one byte; each is ONE
+//          resource with array_size, not one per element
+//    [J] Array of String -> ONE resource with size (per element) + array_size
+//    [K] Struct members are EACH word-aligned (opposite of arrays);
+//          struct closes with word-align padding; nested struct recurses
+//    [L] IEC_Timer -> Object, no timeBase
+//    [M] Every IEC counter width -> Object + counterType
+//    [N] Quoted names with invalid chars -> sanitized ("q-name" -> q_name)
+//    [O] Attribute blocks { ... } stripped from both the name and the type side
+//    [P] Inline // comments -> resource description; block comments stripped
+//    [Q] BEGIN section (initial values) ignored entirely, incl. dot notation
+//    [R] ExternalWritable := 'False' -> readWrite R (on "q-name")
+//
+//  NOT covered here (each aborts the conversion -- see the inline fixtures in
+//  convert_test.go): unknown types, Array of Struct, undefined UDT references,
+//  optimized-access blocks
+// =============================================================================
+
+DATA_BLOCK "coverage_db"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+NON_RETAIN
+   STRUCT
+      // [A][D] default-length string: 254 -> occupies 2+254 = 256
+      s_default : String;
+
+      // [C] 1-byte types: no word alignment, odd addresses are fine
+      i8 : SInt;                        // signed 8-bit
+      u8 : USInt;                       // lands on an ODD byte
+
+      // [A] word-aligned integers
+      i16 : Int;
+      u16 : UInt;
+      i32 : DInt;
+      u32 : UDInt;
+
+      // [A] floats
+      f32 : Real;
+      f64 : LReal;
+
+      // [A] 64-bit integers (not in the XRT Checklist, see S5)
+      i64 : LInt;
+      u64 : ULInt;
+
+      // [A] bit-string types map to unsigned
+      w  : Word;
+      dw : DWord;
+      lw : LWord;
+
+      // [A] signed interval, uses the full Int32 range
+      t : Time;
+
+      // [G] Date -> Uint16 (Checklist: "We don't convert the uint16 to a date")
+      d : Date;
+
+      // [F][G] alias pair: both must produce Uint32 at consecutive offsets
+      tod : Time_Of_Day;
+      tod_alias : TOD;
+
+      // [B] 9 bools: b1..b8 pack into one byte, b9 spills to the next
+      b1 : Bool;
+      b2 : Bool;
+      b3 : Bool;
+      b4 : Bool;
+      b5 : Bool;
+      b6 : Bool;
+      b7 : Bool;
+      b8 : Bool;
+      b9 : Bool;
+      after_bools : Int;                // closes the bool byte, then word-aligns
+
+      // [D] even vs odd declared length
+      s10 : String[10];                 // 2+10 = 12, already even
+      s9  : String[9];                  // 2+9  = 11 -> padded to 12
+
+      // [E] skip types: NO resource, but the offset must still advance
+      k_char  : Char;                   // Checklist: not supported
+      k_wchar : WChar;
+      k_dtl   : DTL;
+      k_ltime : LTime;
+      k_dt    : DT;
+      k_ldt   : LDT;                    // 8 bytes, NOT 12
+      k_hwdev : HW_DEVICE;
+      k_cref  : CREF;
+      k_err   : ErrorStruct;            // 28 bytes
+
+      // [H] arrays of each element width
+      a_i8  : Array[0..2] of SInt;
+      a_i16 : Array[0..2] of Int;
+      a_i32 : Array[0..2] of DInt;
+      a_f32 : Array[0..2] of Real;
+      a_f64 : Array[0..2] of LReal;
+
+      // [I] two adjacent bool arrays -- the second MUST start on a new even byte
+      a_bool1 : Array[0..2] of Bool;
+      a_bool2 : Array[0..8] of Bool;    // 9 elements, spills across a byte
+
+      // [J] array of string: ONE resource, array_size=3, size=20 (per element)
+      a_str : Array[0..2] of String[20];
+
+      // [K] struct: each member word-aligned, nested struct recurses
+      st : Struct
+         x : Int;
+         y : Bool;
+         s : String[10];
+         inner : Struct
+            a : DInt;
+            b : Bool;
+         END_STRUCT;
+      END_STRUCT;
+
+      // [L][O] IEC timer -> Object; attribute block on the type side is stripped
+      tmr {InstructionName := 'IEC_TIMER'; LibVersion := '1.0'} : IEC_TIMER;
+
+      // [M] every counter width -> Object + counterType
+      c_s  {InstructionName := 'IEC_SCOUNTER'}  : IEC_SCOUNTER;    // 3 bytes
+      c_us {InstructionName := 'IEC_USCOUNTER'} : IEC_USCOUNTER;   // 3 bytes
+      c    {InstructionName := 'IEC_COUNTER'}   : IEC_COUNTER;     // 6 bytes
+      c_u  {InstructionName := 'IEC_UCOUNTER'}  : IEC_UCOUNTER;    // 6 bytes
+      c_d  {InstructionName := 'IEC_DCOUNTER'}  : IEC_DCOUNTER;    // 12 bytes
+      c_ud {InstructionName := 'IEC_UDCOUNTER'} : IEC_UDCOUNTER;   // 12 bytes
+
+      // [N][O] quoted name with an invalid char + attribute block on the name side
+      "q-name" { ExternalAccessible := 'False'; ExternalWritable := 'False'} : Int;
+   END_STRUCT;
+
+BEGIN
+   // [Q] initial values -- the whole BEGIN section is ignored by the importer
+   s_default := 'IOTech';
+   i8 := -128;
+   u8 := 255;
+   i16 := -32768;
+   b1 := true;
+   tod := TOD#14:30:25.500;
+   a_i16[0] := -32768;
+   a_i16[1] := 0;
+   a_i16[2] := 32767;
+   a_bool2[0] := true;
+   a_bool2[8] := true;
+   a_str[0] := 'hello';
+   st.x := 55;
+   st.inner.a := 1234;
+   // dot notation on an IEC counter -- must not be mistaken for a declaration
+   c_s.PV := 100;
+   c_s.CV := 0;
+   "q-name" := 3969;
+END_DATA_BLOCK
+
+// =============================================================================
+//  APPENDIX: offset validation (golden assertion reference)
+//  ---------------------------------------------------------------------------
+//  Total block size: 644 bytes. Layout rules applied:
+//    - every type except Bool starts on an even (word) byte
+//    - 1-byte types (SInt/USInt/Byte) need no alignment
+//    - Bools are bit-packed, 8 per byte (bitIndex 0-7); any non-Bool type closes
+//      the current bool byte first
+//    - String[n] occupies 2+n bytes, rounded up to even
+//    - arrays: element_size x count, only the first element is word-aligned
+//    - each bool array starts on a new even byte
+//    - struct members are EACH word-aligned; a struct closes word-aligned
+//  Format: name | S7 type | start | bitIndex | bytes consumed
+//
+//  -- scalars --------------------------------------------------------------
+//  s_default   String[254]     0            256 (2+254)
+//  i8          SInt          256            1    <- [C] no align needed
+//  u8          USInt         257            1    <- [C] ODD address
+//  i16         Int           258            2
+//  u16         UInt          260            2
+//  i32         DInt          262            4
+//  u32         UDInt         266            4
+//  f32         Real          270            4
+//  f64         LReal         274            8
+//  i64         LInt          282            8
+//  u64         ULInt         290            8
+//  w           Word          298            2
+//  dw          DWord         300            4
+//  lw          LWord         304            8
+//  t           Time          312            4
+//  d           Date          316            2    <- [G] emits Uint16
+//  tod         Time_Of_Day   318            4    <- [F] Uint32, unsigned
+//  tod_alias   TOD           322            4    <- [F] same path as above
+//
+//  -- [B] bool bit packing -------------------------------------------------
+//  b1..b8      Bool          326   bit 0..7  (one shared byte)
+//  b9          Bool          327   bit 0     (spills to next byte)
+//  after_bools Int           328            2    <- closes byte 327, aligns
+//
+//  -- [D] string padding ---------------------------------------------------
+//  s10         String[10]    330            12 (2+10, even)
+//  s9          String[9]     342            12 (2+9=11 -> padded)
+//
+//  -- [E] skip types: offset advances, NO resource -------------------------
+//  k_char      Char          354            1
+//  k_wchar     WChar         356            2
+//  k_dtl       DTL           358            12
+//  k_ltime     LTime         370            8
+//  k_dt        DT            378            8
+//  k_ldt       LDT           386            8    <- 8, NOT 12
+//  k_hwdev     HW_DEVICE     394            2
+//  k_cref      CREF          396            8
+//  k_err       ErrorStruct   404            28
+//
+//  -- [H] arrays (array_size = 3) ------------------------------------------
+//  a_i8        SInt   x3     432            3
+//  a_i16       Int    x3     436            6
+//  a_i32       DInt   x3     442            12
+//  a_f32       Real   x3     454            12
+//  a_f64       LReal  x3     466            24
+//
+//  -- [I] bool arrays: each starts on a NEW EVEN byte ----------------------
+//  a_bool1     Bool   x3     490   array_size=3, no bitIndex
+//  a_bool2     Bool   x9     492   array_size=9
+//              ^^^ 490 has 5 unused bits; a_bool2 must NOT reuse them
+//
+//  -- [J] array of string: array_size=3, size=20 (per element) -------------
+//  a_str       String[20] x3 494            66 (22 x 3), size=20 array_size=3
+//
+//  -- [K] struct: members EACH word-aligned, closes word-aligned -----------
+//  st.x        Int           560            2
+//  st.y        Bool          562   bit 0
+//  st.s        String[10]    564            12
+//  st.inner.a  DInt          576            4
+//  st.inner.b  Bool          580   bit 0
+//              (inner closes -> 582; outer closes -> 582)
+//
+//  -- [L][M] IEC timer / counters (valueType = Object) ---------------------
+//  tmr         IEC_TIMER     582            16
+//  c_s         IEC_SCOUNTER  598            3    counterType=int8
+//  c_us        IEC_USCOUNTER 602            3    counterType=uint8
+//  c           IEC_COUNTER   606            6    counterType=int16
+//  c_u         IEC_UCOUNTER  612            6    counterType=uint16
+//  c_d         IEC_DCOUNTER  618            12   counterType=int32
+//  c_ud        IEC_UDCOUNTER 630            12   counterType=uint32
+//
+//  -- [N] sanitized name ---------------------------------------------------
+//  "q-name" -> q_name  Int   642            2
+//
+//  -- expected resource count ---------------------------------------------
+//  51 resources total, from 60 declarations:
+//    18 scalars + 9 bools + 3 (after_bools, s10, s9)
+//   + 8 arrays (ONE resource each, carrying array_size)
+//   + 5 flattened struct members (st_x, st_y, st_s, st_inner_a, st_inner_b)
+//   + 7 IEC timer/counters + 1 sanitized name (q_name)
+//    ... and 9 skip-type declarations that emit NOTHING.
+//
+//  Every value above is asserted, resource by resource, in
+//  TestConvertSampleProfile -- so this appendix is an executable contract
+//  rather than a comment.
+//
+// =============================================================================

@@ -1,0 +1,86 @@
+// UDT (user-defined PLC data type) coverage. Synthetic, not a real data block.
+//
+// Keying the parse off the first `STRUCT` line would build the profile from
+// udt_Motor's members instead of the data block's -- silently, with
+// plausible-looking offsets. This file locks that out.
+//
+// Coverage:
+//   [A] TYPE appears BEFORE DATA_BLOCK (the natural export order: a definition
+//       precedes its use) -- the parser must not mistake it for the DB body
+//   [B] Multiple TYPE blocks in one file
+//   [C] UDT nested in UDT (udt_Station references udt_Motor) -- requires the
+//       two-phase parse: collect all TYPE bodies first, resolve types after,
+//       because export order is NOT guaranteed to be topological
+//   [D] udt_Station is DEFINED BEFORE the UDT it depends on, proving phase 1
+//       must not resolve eagerly
+//   [E] The same UDT referenced more than once (m1/m2) -- name de-duplication
+//   [F] END_TYPE as a block boundary
+//   [G] Quoted type name on the type side
+//
+// Support level is SKIP: compute the size, advance the offset, emit no resource.
+
+// [D] defined first, but depends on udt_Motor below
+TYPE "udt_Station"
+VERSION : 0.1
+   STRUCT
+      m1 : "udt_Motor";                  // [C][E] nested UDT reference
+      m2 : "udt_Motor";                  // [E] same UDT again
+      station_id : Int;
+   END_STRUCT;
+END_TYPE
+
+// [B] second TYPE block; [A] both precede the DATA_BLOCK
+TYPE "udt_Motor"
+VERSION : 0.1
+   STRUCT
+      Speed : Int;                       // 2
+      Running : Bool;                    // 1 bit -> struct closes word-aligned
+      Name : String[20];                 // 22
+   END_STRUCT;
+END_TYPE
+
+DATA_BLOCK "udt_db"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+NON_RETAIN
+   STRUCT
+      lead_in : Int;                     // must be at offset 0
+      motor : "udt_Motor";               // [G] skip, advance by sizeof(udt_Motor)
+      station : "udt_Station";           // [C] skip, advance by sizeof(udt_Station)
+      tail : Int;                        // offset proves both sizes were correct
+   END_STRUCT;
+BEGIN
+   lead_in := 1;
+   motor.Speed := 100;                   // dot notation into a UDT -- ignored
+   station.m1.Speed := 200;              // nested dot notation -- ignored
+   tail := 2;
+END_DATA_BLOCK
+
+// =============================================================================
+//  APPENDIX: expected sizes and offsets
+//  ---------------------------------------------------------------------------
+//  sizeof(udt_Motor):
+//    Speed    Int          +0   2
+//    Running  Bool         +2   1 bit
+//    Name     String[20]   +4   22   <- bool byte closed, word-aligned
+//    ---------------------------------
+//    total                      26
+//
+//  sizeof(udt_Station):
+//    m1          udt_Motor  +0   26
+//    m2          udt_Motor  +26  26
+//    station_id  Int        +52  2
+//    ---------------------------------
+//    total                       54
+//
+//  DATA_BLOCK "udt_db" (SKIP support level -- only lead_in and tail emit):
+//    lead_in  Int          0     2
+//    motor    udt_Motor    2     26   -> no resource
+//    station  udt_Station  28    54   -> no resource
+//    tail     Int          82    2
+//    ---------------------------------
+//    total block size            84
+//
+//  Expected: 2 resources (lead_in @0, tail @82). tail's offset is what proves
+//  both UDT sizes: any other value means the sizing is wrong.
+// =============================================================================
