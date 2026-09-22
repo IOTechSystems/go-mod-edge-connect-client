@@ -80,10 +80,11 @@ func assertFailedItemUnderSuccessfulEnvelope(t *testing.T) {
 	}
 }
 
-// A schedule reply names its items with a different field, which is why the two result
-// shapes are separate types.
+// A schedule reply names its items with a different field and arrives under a different
+// key ("schedules", not "device_results"), which is why the two result shapes are
+// separate types. Both were measured on XRT 3.4.6.
 func assertScheduleResultNamedFromScheduleField(t *testing.T) {
-	const reply = `{"result":{"schedule_results":[` +
+	const reply = `{"result":{"schedules":[` +
 		`{"schedule":"s1","status":0},` +
 		`{"schedule":"s2","error":"error_message","status":4}` +
 		`],"status":0}}`
@@ -374,7 +375,7 @@ func TestBatchResultConversion(t *testing.T) {
 		},
 		{
 			name: "schedule results are named from the schedule field",
-			reply: `{"result":{"schedule_results":[` +
+			reply: `{"result":{"schedules":[` +
 				`{"schedule":"s1","status":0},` +
 				`{"schedule":"s2","error":"error_message","status":4}` +
 				`],"status":0}}`,
