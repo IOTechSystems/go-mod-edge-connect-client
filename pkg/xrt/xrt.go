@@ -37,6 +37,9 @@ type Client struct {
 	discoveryHandlerID           topicmgr.HandlerID
 	statusTopicManager           *topicmgr.DispatcherTopicManager
 	statusHandlerID              topicmgr.HandlerID
+
+	// discoveryOnReply means the discovery handler is set on replyTopicManager (see initDiscoverySubscription).
+	discoveryOnReply bool
 }
 
 type ClientOptions struct {
@@ -270,6 +273,14 @@ func (c *Client) initDiscoverySubscription(clientOptions *ClientOptions, lc logg
 		clientOptions.DiscoveryOptions.DiscoveryMessageHandler == nil {
 		return nil
 	}
+	// XRT 3.4 sends discovery results on the reply topic, so reuse its reply manager.
+	if clientOptions.DiscoveryOptions.DiscoveryTopic == c.replyTopic && c.replyTopicManager != nil {
+		if err := c.replyTopicManager.SetDiscoveryHandler(clientOptions.DiscoveryOptions.DiscoveryMessageHandler); err != nil {
+			return errors.NewCommonEdgeXWrapper(err)
+		}
+		c.discoveryOnReply = true
+		return nil
+	}
 	manager, err := topicmgr.TmPool.GetDispatcherTopicManager(clientOptions.DiscoveryOptions.DiscoveryTopic, c.messageBus, lc, ctx)
 	if err != nil {
 		return errors.NewCommonEdgeXWrapper(err)
@@ -307,6 +318,10 @@ func (c *Client) Close() errors.EdgeX {
 	// The disconnect should be handled by the code that created the messageBus client.
 
 	if c.replyTopicManager != nil {
+		if c.discoveryOnReply {
+			c.replyTopicManager.ClearDiscoveryHandler()
+			c.discoveryOnReply = false
+		}
 		topicmgr.TmPool.ReleaseTopicManager(c.replyTopic)
 		c.replyTopicManager = nil
 	}
