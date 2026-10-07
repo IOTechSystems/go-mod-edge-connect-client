@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/IOTechSystems/sparkplug-sdk-go/pkg/sparkplug/protobuf"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/clients/logger"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/errors"
@@ -23,14 +22,15 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/xrt/sparkplug/models"
+	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/xrt/sparkplug/protobuf"
 )
 
 var (
-	modbusNode = models.NodeKey{Group: "iotech", Node: "xrt-modbus-v3.4"}
-	bacnetNode = models.NodeKey{Group: "iotech", Node: "xrt-bacnet-v3.4"}
+	modbusNode = models.NodeKey{Group: "iotech", Node: "xrt-modbus-v4"}
+	bacnetNode = models.NodeKey{Group: "iotech", Node: "xrt-bacnet-v4"}
 )
 
-// The testdata files are NBIRTH/DBIRTH captured from XRT 3.4.6 (protojson), e.g. modbus bdSeq 38, trimmed to the
+// The testdata files are NBIRTH/DBIRTH captured from XRT v4 (protojson), e.g. modbus bdSeq 38, trimmed to the
 // metrics the tests need; each Service/* config keeps only its Name.
 func fixture(t *testing.T, name string) []byte {
 	t.Helper()
@@ -102,7 +102,7 @@ func TestNewClient(t *testing.T) {
 	}, topics)
 
 	// A message on the subscribed channel reaches the node state through the run goroutine.
-	subscribed[0].Messages <- message("spBv1.0/iotech/NBIRTH/xrt-modbus-v3.4", fixture(t, "nbirth_xrt-modbus.json"))
+	subscribed[0].Messages <- message("spBv1.0/iotech/NBIRTH/xrt-modbus-v4", fixture(t, "nbirth_xrt-modbus.json"))
 	assert.Eventually(t, func() bool { return len(client.Nodes()) == 1 }, time.Second, 10*time.Millisecond)
 }
 
@@ -114,8 +114,8 @@ func TestNewClientWithoutGroups(t *testing.T) {
 
 func TestBirth(t *testing.T) {
 	c := newTestClient(mocks.NewMessageClient(t))
-	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v3.4", fixture(t, "nbirth_xrt-modbus.json")))
-	c.handle(message("spBv1.0/iotech/DBIRTH/xrt-modbus-v3.4/modbus-sim", fixture(t, "dbirth_xrt-modbus_modbus-sim.json")))
+	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v4", fixture(t, "nbirth_xrt-modbus.json")))
+	c.handle(message("spBv1.0/iotech/DBIRTH/xrt-modbus-v4/modbus-sim", fixture(t, "dbirth_xrt-modbus_modbus-sim.json")))
 
 	node := onlyNode(t, c)
 	assert.Equal(t, modbusNode, node.NodeKey)
@@ -133,9 +133,9 @@ func TestBirth(t *testing.T) {
 // A rebirth re-publishes NBIRTH, which must drop the devices of the earlier birth until their DBIRTHs come again.
 func TestNBIRTHClearsDevices(t *testing.T) {
 	c := newTestClient(mocks.NewMessageClient(t))
-	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v3.4", fixture(t, "nbirth_xrt-modbus.json")))
-	c.handle(message("spBv1.0/iotech/DBIRTH/xrt-modbus-v3.4/modbus-sim", fixture(t, "dbirth_xrt-modbus_modbus-sim.json")))
-	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v3.4", fixture(t, "nbirth_xrt-modbus.json")))
+	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v4", fixture(t, "nbirth_xrt-modbus.json")))
+	c.handle(message("spBv1.0/iotech/DBIRTH/xrt-modbus-v4/modbus-sim", fixture(t, "dbirth_xrt-modbus_modbus-sim.json")))
+	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v4", fixture(t, "nbirth_xrt-modbus.json")))
 
 	assert.Empty(t, onlyNode(t, c).Devices)
 }
@@ -143,10 +143,10 @@ func TestNBIRTHClearsDevices(t *testing.T) {
 func TestDevices(t *testing.T) {
 	c := newTestClient(mocks.NewMessageClient(t))
 	dbirth := fixture(t, "dbirth_xrt-modbus_modbus-sim.json")
-	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v3.4", fixture(t, "nbirth_xrt-modbus.json")))
-	c.handle(message("spBv1.0/iotech/DBIRTH/xrt-modbus-v3.4/modbus-sim", dbirth))
-	c.handle(message("spBv1.0/iotech/DBIRTH/xrt-modbus-v3.4/other", dbirth))
-	c.handle(message("spBv1.0/iotech/DBIRTH/xrt-modbus-v3.4/modbus-sim", dbirth)) // replaces, no duplicate
+	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v4", fixture(t, "nbirth_xrt-modbus.json")))
+	c.handle(message("spBv1.0/iotech/DBIRTH/xrt-modbus-v4/modbus-sim", dbirth))
+	c.handle(message("spBv1.0/iotech/DBIRTH/xrt-modbus-v4/other", dbirth))
+	c.handle(message("spBv1.0/iotech/DBIRTH/xrt-modbus-v4/modbus-sim", dbirth)) // replaces, no duplicate
 
 	deviceNames := func() []string {
 		var names []string
@@ -159,7 +159,7 @@ func TestDevices(t *testing.T) {
 
 	before := deviceNames()
 	beforeDevices := onlyNode(t, c).Devices
-	c.handle(message("spBv1.0/iotech/DDEATH/xrt-modbus-v3.4/other", nil))
+	c.handle(message("spBv1.0/iotech/DDEATH/xrt-modbus-v4/other", nil))
 	assert.Equal(t, []string{"modbus-sim"}, deviceNames())
 
 	var stillThere []string
@@ -188,7 +188,7 @@ func TestNDEATH(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := newTestClient(mocks.NewMessageClient(t))
 			c.nodes[modbusNode] = models.NodeInfo{NodeKey: modbusNode, BdSeq: tt.stored}
-			c.handle(message("spBv1.0/iotech/NDEATH/xrt-modbus-v3.4", tt.death))
+			c.handle(message("spBv1.0/iotech/NDEATH/xrt-modbus-v4", tt.death))
 			assert.Equal(t, tt.removed, len(c.Nodes()) == 0)
 		})
 	}
@@ -204,7 +204,7 @@ func mustMarshal(t *testing.T, p *protobuf.Payload) []byte {
 // The per-node rebirth is published in the background, so tests observe it through this channel.
 func expectNodeRebirth(bus *mocks.MessageClient, err error, times int) chan []byte {
 	published := make(chan []byte, times)
-	bus.On("PublishBinaryData", mock.Anything, "spBv1.0/iotech/NCMD/xrt-modbus-v3.4").
+	bus.On("PublishBinaryData", mock.Anything, "spBv1.0/iotech/NCMD/xrt-modbus-v4").
 		Run(func(args mock.Arguments) { published <- args.Get(0).([]byte) }).
 		Return(err).Times(times)
 	return published
@@ -244,17 +244,17 @@ func TestUnknownNodeIsRebornOnce(t *testing.T) {
 
 	dbirth := fixture(t, "dbirth_xrt-modbus_modbus-sim.json")
 	for i := 0; i < 10; i++ {
-		c.handle(message("spBv1.0/iotech/DBIRTH/xrt-modbus-v3.4/modbus-sim", dbirth))
-		c.handle(message("spBv1.0/iotech/DDEATH/xrt-modbus-v3.4/modbus-sim", nil))
+		c.handle(message("spBv1.0/iotech/DBIRTH/xrt-modbus-v4/modbus-sim", dbirth))
+		c.handle(message("spBv1.0/iotech/DDEATH/xrt-modbus-v4/modbus-sim", nil))
 	}
 	assertRebirth(t, waitPublished(t, published))
 	assertNotPublished(t, published) // 20 unknown messages, one rebirth
 	assert.Empty(t, c.Nodes())
 
 	// The NBIRTH clears the mark, so a later unknown message asks again.
-	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v3.4", fixture(t, "nbirth_xrt-modbus.json")))
-	c.handle(message("spBv1.0/iotech/NDEATH/xrt-modbus-v3.4", deathPayload(t, 38)))
-	c.handle(message("spBv1.0/iotech/DBIRTH/xrt-modbus-v3.4/modbus-sim", dbirth))
+	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v4", fixture(t, "nbirth_xrt-modbus.json")))
+	c.handle(message("spBv1.0/iotech/NDEATH/xrt-modbus-v4", deathPayload(t, 38)))
+	c.handle(message("spBv1.0/iotech/DBIRTH/xrt-modbus-v4/modbus-sim", dbirth))
 	waitPublished(t, published)
 }
 
@@ -263,8 +263,13 @@ func assertRebirth(t *testing.T, data []byte) {
 	var p protobuf.Payload
 	require.NoError(t, proto.Unmarshal(data, &p))
 	require.Len(t, p.GetMetrics(), 1)
-	assert.Equal(t, "Node Control/Rebirth", p.GetMetrics()[0].GetName())
-	assert.True(t, p.GetMetrics()[0].GetBooleanValue())
+	m := p.GetMetrics()[0]
+	assert.Equal(t, "Node Control/Rebirth", m.GetName())
+	assert.Equal(t, uint32(protobuf.DataType_Boolean), m.GetDatatype())
+	assert.True(t, m.GetBooleanValue())
+	assert.NotZero(t, m.GetTimestamp())
+	assert.NotZero(t, p.GetTimestamp())
+	assert.Nil(t, p.Seq, "an NCMD carries no seq")
 }
 
 func TestRebirth(t *testing.T) {
@@ -282,22 +287,22 @@ func TestRebirth(t *testing.T) {
 
 func TestNodesSortedByGroupThenNode(t *testing.T) {
 	c := newTestClient(mocks.NewMessageClient(t))
-	c.handle(message("spBv1.0/site-b/NBIRTH/xrt-modbus-v3.4", fixture(t, "nbirth_xrt-modbus.json")))
-	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v3.4", fixture(t, "nbirth_xrt-modbus.json")))
-	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-bacnet-v3.4", fixture(t, "nbirth_xrt-bacnet.json")))
+	c.handle(message("spBv1.0/site-b/NBIRTH/xrt-modbus-v4", fixture(t, "nbirth_xrt-modbus.json")))
+	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v4", fixture(t, "nbirth_xrt-modbus.json")))
+	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-bacnet-v4", fixture(t, "nbirth_xrt-bacnet.json")))
 
 	var keys []models.NodeKey
 	for _, n := range c.Nodes() {
 		keys = append(keys, n.NodeKey)
 	}
-	assert.Equal(t, []models.NodeKey{bacnetNode, modbusNode, {Group: "site-b", Node: "xrt-modbus-v3.4"}}, keys)
+	assert.Equal(t, []models.NodeKey{bacnetNode, modbusNode, {Group: "site-b", Node: "xrt-modbus-v4"}}, keys)
 }
 
 func TestHandleSkipsInvalidMessages(t *testing.T) {
 	c := newTestClient(mocks.NewMessageClient(t))
-	c.handle(types.MessageEnvelope{ReceivedTopic: "spBv1.0/iotech/NBIRTH/xrt-modbus-v3.4", Payload: "not bytes"})
+	c.handle(types.MessageEnvelope{ReceivedTopic: "spBv1.0/iotech/NBIRTH/xrt-modbus-v4", Payload: "not bytes"})
 	c.handle(message("spBv1.0/iotech", fixture(t, "nbirth_xrt-modbus.json")))
-	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v3.4", []byte{0xff}))
+	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v4", []byte{0xff}))
 	assert.Empty(t, c.Nodes())
 }
 
@@ -306,7 +311,7 @@ func TestHandleRecoversFromPanic(t *testing.T) {
 	c.nodes = nil // NBIRTH panics writing to a nil map while holding nodesMu
 
 	assert.NotPanics(t, func() {
-		c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v3.4", fixture(t, "nbirth_xrt-modbus.json")))
+		c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v4", fixture(t, "nbirth_xrt-modbus.json")))
 	})
 	assert.Empty(t, c.Nodes(), "nodesMu must be released after the panic")
 }
@@ -388,19 +393,19 @@ func TestFailedRebirthIsRetried(t *testing.T) {
 	failed := expectNodeRebirth(bus, assert.AnError, 1)
 	c := newTestClient(bus)
 
-	c.handle(message("spBv1.0/iotech/DDEATH/xrt-modbus-v3.4/modbus-sim", nil))
+	c.handle(message("spBv1.0/iotech/DDEATH/xrt-modbus-v4/modbus-sim", nil))
 	waitPublished(t, failed)
 	assert.Eventually(t, func() bool { return !rebornPending(c, modbusNode) }, time.Second, 5*time.Millisecond,
 		"a failed publish clears the mark")
 
 	retried := expectNodeRebirth(bus, nil, 1)
-	c.handle(message("spBv1.0/iotech/DDEATH/xrt-modbus-v3.4/modbus-sim", nil))
+	c.handle(message("spBv1.0/iotech/DDEATH/xrt-modbus-v4/modbus-sim", nil))
 	waitPublished(t, retried)
 }
 
 func TestDACKIsIgnored(t *testing.T) {
 	c := newTestClient(mocks.NewMessageClient(t)) // a rebirth publish would fail the mock
-	c.handle(message("spBv1.0/iotech/DACK/xrt-modbus-v3.4/modbus-sim", mustMarshal(t, &protobuf.Payload{})))
+	c.handle(message("spBv1.0/iotech/DACK/xrt-modbus-v4/modbus-sim", mustMarshal(t, &protobuf.Payload{})))
 	assert.Empty(t, c.Nodes())
 	assert.Empty(t, c.reborn)
 }
@@ -520,13 +525,13 @@ func TestSlowRebirthDoesNotBlockHandling(t *testing.T) {
 	bus.On("SubscribeBinaryData", mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) { channels = args.Get(0).([]types.TopicChannel) }).Return(nil).Once()
 	release := make(chan struct{})
-	bus.On("PublishBinaryData", mock.Anything, "spBv1.0/iotech/NCMD/xrt-modbus-v3.4").
+	bus.On("PublishBinaryData", mock.Anything, "spBv1.0/iotech/NCMD/xrt-modbus-v4").
 		Run(func(mock.Arguments) { <-release }).Return(nil).Once()
 	bus.On("Unsubscribe", anyTopics(5)...).Return(nil).Once()
 
 	client, err := NewClient(context.Background(), bus, []string{"iotech"}, time.Second, logger.NewMockClient())
 	require.NoError(t, err)
-	sendAll(t, channels[0].Messages, 200, message("spBv1.0/iotech/DDEATH/xrt-modbus-v3.4/modbus-sim", nil))
+	sendAll(t, channels[0].Messages, 200, message("spBv1.0/iotech/DDEATH/xrt-modbus-v4/modbus-sim", nil))
 	close(release)
 	require.NoError(t, client.Close())
 }
@@ -537,13 +542,13 @@ func TestCloseWaitsForRebirth(t *testing.T) {
 	bus.On("SubscribeBinaryData", mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) { channels = args.Get(0).([]types.TopicChannel) }).Return(nil).Once()
 	started, release := make(chan struct{}), make(chan struct{})
-	bus.On("PublishBinaryData", mock.Anything, "spBv1.0/iotech/NCMD/xrt-modbus-v3.4").
+	bus.On("PublishBinaryData", mock.Anything, "spBv1.0/iotech/NCMD/xrt-modbus-v4").
 		Run(func(mock.Arguments) { close(started); <-release }).Return(nil).Once()
 	bus.On("Unsubscribe", anyTopics(5)...).Return(nil).Once()
 
 	client, err := NewClient(context.Background(), bus, []string{"iotech"}, time.Second, logger.NewMockClient())
 	require.NoError(t, err)
-	channels[0].Messages <- message("spBv1.0/iotech/DDEATH/xrt-modbus-v3.4/modbus-sim", nil)
+	channels[0].Messages <- message("spBv1.0/iotech/DDEATH/xrt-modbus-v4/modbus-sim", nil)
 	<-started
 	closed := make(chan error)
 	go func() { closed <- client.Close() }()
@@ -573,7 +578,7 @@ func TestNewClientSubscribeFailureDrains(t *testing.T) {
 // DBIRTH payloads carry neither bdSeq nor Service/*, so one doubles as an NBIRTH from a node without EnableServices.
 func TestNBIRTHWithoutServicesOrBdSeq(t *testing.T) {
 	c := newTestClient(mocks.NewMessageClient(t))
-	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v3.4", fixture(t, "dbirth_xrt-modbus_modbus-sim.json")))
+	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v4", fixture(t, "dbirth_xrt-modbus_modbus-sim.json")))
 
 	node := onlyNode(t, c)
 	assert.Empty(t, node.Services, "kept as a node; the caller decides it has no EdgeInst")
@@ -582,8 +587,8 @@ func TestNBIRTHWithoutServicesOrBdSeq(t *testing.T) {
 
 func TestNBIRTHReplacesServicesAndMetrics(t *testing.T) {
 	c := newTestClient(mocks.NewMessageClient(t))
-	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v3.4", fixture(t, "nbirth_xrt-modbus.json")))
-	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v3.4", fixture(t, "nbirth_xrt-bacnet.json")))
+	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v4", fixture(t, "nbirth_xrt-modbus.json")))
+	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v4", fixture(t, "nbirth_xrt-bacnet.json")))
 
 	node := onlyNode(t, c)
 	assert.Equal(t, []string{"bacnet_ip"}, node.Services)
@@ -596,16 +601,16 @@ func TestUnknownNodeNDEATHTriggersRebirth(t *testing.T) {
 	published := expectNodeRebirth(bus, nil, 1)
 	c := newTestClient(bus)
 
-	c.handle(message("spBv1.0/iotech/NDEATH/xrt-modbus-v3.4", deathPayload(t, 38)))
+	c.handle(message("spBv1.0/iotech/NDEATH/xrt-modbus-v4", deathPayload(t, 38)))
 	waitPublished(t, published)
 	assert.Empty(t, c.Nodes())
 }
 
 func TestDDEATHOfUnknownDevice(t *testing.T) {
 	c := newTestClient(mocks.NewMessageClient(t)) // a rebirth publish would fail the mock
-	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v3.4", fixture(t, "nbirth_xrt-modbus.json")))
-	c.handle(message("spBv1.0/iotech/DBIRTH/xrt-modbus-v3.4/modbus-sim", fixture(t, "dbirth_xrt-modbus_modbus-sim.json")))
-	c.handle(message("spBv1.0/iotech/DDEATH/xrt-modbus-v3.4/no-such-device", nil))
+	c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v4", fixture(t, "nbirth_xrt-modbus.json")))
+	c.handle(message("spBv1.0/iotech/DBIRTH/xrt-modbus-v4/modbus-sim", fixture(t, "dbirth_xrt-modbus_modbus-sim.json")))
+	c.handle(message("spBv1.0/iotech/DDEATH/xrt-modbus-v4/no-such-device", nil))
 
 	require.Len(t, onlyNode(t, c).Devices, 1)
 	assert.Empty(t, c.reborn)
@@ -624,7 +629,7 @@ func TestSubscriptionErrorDoesNotStopHandling(t *testing.T) {
 	client, err := NewClient(context.Background(), bus, []string{"iotech"}, time.Second, logger.NewMockClient())
 	require.NoError(t, err)
 	messageErrors <- assert.AnError
-	channels[0].Messages <- message("spBv1.0/iotech/NBIRTH/xrt-modbus-v3.4", fixture(t, "nbirth_xrt-modbus.json"))
+	channels[0].Messages <- message("spBv1.0/iotech/NBIRTH/xrt-modbus-v4", fixture(t, "nbirth_xrt-modbus.json"))
 	assert.Eventually(t, func() bool { return len(client.Nodes()) == 1 }, time.Second, 10*time.Millisecond)
 	require.NoError(t, client.Close())
 }

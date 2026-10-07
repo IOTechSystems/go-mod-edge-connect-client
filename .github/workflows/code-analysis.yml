@@ -18,11 +18,9 @@ jobs:
     with:
       GO_LINT_CONFIG_PATH: .golangci.yml
       GO_LINT_VERSION: v2.14.0
-      USE_PRIVATE_MODULE: true
     secrets: inherit  
   call-sonar-scan:
     uses: IOTechSystems/github-action-workflow/.github/workflows/reusable-sonarqube-scan.yml@main
     with:
       PROJECT_NAME: go-mod-edge-connect-client
-      USE_PRIVATE_MODULE: true
     secrets: inherit

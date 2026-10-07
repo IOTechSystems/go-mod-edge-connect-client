@@ -1,7 +1,5 @@
 github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.111 h1:H+WeqidEnm9twKcK7zCsvJz5Nyz9rC1ldmZ+pbITsfA=
 github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.111/go.mod h1:bfs1q9GGs0hV+KYrD7BodUS4MUoqUJF1+5XHL0oUlO4=
-github.com/IOTechSystems/sparkplug-sdk-go v1.3.8 h1:lJk5/MXnafCPSsAHPCu3jDq19FA0CQOyqiPUAYt/Rf0=
-github.com/IOTechSystems/sparkplug-sdk-go v1.3.8/go.mod h1:lGN5FissqKJCYZ8edu5ivhwENcOpaq1+LIZD7a8v1aQ=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/eclipse/paho.mqtt.golang v1.5.1 h1:/VSOv3oDLlpqR2Epjn1Q7b2bSTplJIeV2ISgCl2W7nE=
