@@ -4,6 +4,7 @@ package xrt
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/IOTechSystems/go-mod-central-ext/v4/pkg/xrtmodels"
@@ -11,15 +12,50 @@ import (
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/errors"
 )
 
+// profileListResponse replaces xrtmodels.MultiProfilesResponse, whose []string profiles cannot decode XRT 3.4,
+// which lists each profile as {"name", "in_use"}.
+type profileListResponse struct {
+	xrtmodels.BaseResponse `json:",inline"`
+	Result                 struct {
+		xrtmodels.BaseResult `json:",inline"`
+		Profiles             []profileListItem `json:"profiles"`
+	} `json:"result"`
+}
+
+// profileListItem accepts both a bare profile name and a {"name": ..., "in_use": ...} object.
+type profileListItem struct {
+	Name string `json:"name"`
+}
+
+func (item *profileListItem) UnmarshalJSON(data []byte) error {
+	var name string
+	if err := json.Unmarshal(data, &name); err != nil {
+		type object profileListItem
+		if err := json.Unmarshal(data, (*object)(item)); err != nil {
+			return err
+		}
+		name = item.Name
+	}
+	if name == "" {
+		return fmt.Errorf("profile without a name: %s", data)
+	}
+	item.Name = name
+	return nil
+}
+
 func (c *Client) AllDeviceProfiles(ctx context.Context) ([]string, errors.EdgeX) {
 	request := xrtmodels.NewAllProfilesRequest(clientName)
-	var response xrtmodels.MultiProfilesResponse
+	var response profileListResponse
 
 	err := c.sendXrtRequest(ctx, request.RequestId, request, &response)
 	if err != nil {
 		return nil, errors.NewCommonEdgeX(errors.Kind(err), "failed to query profile list", err)
 	}
-	return response.Result.Profiles, nil
+	names := make([]string, 0, len(response.Result.Profiles))
+	for _, profile := range response.Result.Profiles {
+		names = append(names, profile.Name)
+	}
+	return names, nil
 }
 
 func (c *Client) DeviceProfileByName(ctx context.Context, name string) (dtos.DeviceProfile, errors.EdgeX) {

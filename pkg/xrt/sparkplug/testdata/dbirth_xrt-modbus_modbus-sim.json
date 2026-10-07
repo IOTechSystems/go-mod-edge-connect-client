@@ -1,0 +1,89 @@
+{
+  "timestamp": "1790738474211",
+  "metrics": [
+    {
+      "name": "Device Control/Rebirth",
+      "timestamp": "1790735906648",
+      "datatype": 11,
+      "properties": {
+        "keys": [
+          "readWrite"
+        ],
+        "values": [
+          {
+            "type": 12,
+            "stringValue": "W"
+          }
+        ]
+      },
+      "booleanValue": false
+    },
+    {
+      "name": "DemandWindowSize",
+      "alias": "5891177652",
+      "timestamp": "1790735906647",
+      "datatype": 6,
+      "properties": {
+        "keys": [
+          "Attribute/primaryTable",
+          "Attribute/startingAddress",
+          "quality",
+          "readWrite"
+        ],
+        "values": [
+          {
+            "type": 12,
+            "stringValue": "HOLDING_REGISTERS"
+          },
+          {
+            "type": 4,
+            "longValue": "4603"
+          },
+          {
+            "type": 3,
+            "intValue": 0
+          },
+          {
+            "type": 12,
+            "stringValue": "R"
+          }
+        ]
+      },
+      "intValue": 0
+    },
+    {
+      "name": "Voltage",
+      "alias": "7916512088",
+      "timestamp": "1790735906647",
+      "datatype": 6,
+      "properties": {
+        "keys": [
+          "Attribute/primaryTable",
+          "Attribute/startingAddress",
+          "quality",
+          "readWrite"
+        ],
+        "values": [
+          {
+            "type": 12,
+            "stringValue": "HOLDING_REGISTERS"
+          },
+          {
+            "type": 4,
+            "longValue": "4017"
+          },
+          {
+            "type": 3,
+            "intValue": 0
+          },
+          {
+            "type": 12,
+            "stringValue": "RW"
+          }
+        ]
+      },
+      "intValue": 0
+    }
+  ],
+  "seq": "4"
+}

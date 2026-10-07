@@ -37,6 +37,9 @@ type Client struct {
 	discoveryHandlerID           topicmgr.HandlerID
 	statusTopicManager           *topicmgr.DispatcherTopicManager
 	statusHandlerID              topicmgr.HandlerID
+
+	// discoveryOnReply means the discovery handler is set on replyTopicManager (see initDiscoverySubscription).
+	discoveryOnReply bool
 }
 
 type ClientOptions struct {
@@ -54,7 +57,8 @@ type CommandOptions struct {
 
 // DiscoveryOptions provides the config for sending the discovery request like discovery:trigger, device:scan
 type DiscoveryOptions struct {
-	DiscoveryTopic           string
+	DiscoveryTopic string
+	// DiscoveryMessageHandler must not call Close on its own client (see Client.Close).
 	DiscoveryMessageHandler  topicmgr.MessageHandler
 	DiscoveryTimeout         time.Duration
 	ExtendedDiscoveryOptions map[string]any
@@ -270,6 +274,14 @@ func (c *Client) initDiscoverySubscription(clientOptions *ClientOptions, lc logg
 		clientOptions.DiscoveryOptions.DiscoveryMessageHandler == nil {
 		return nil
 	}
+	// XRT 3.4 sends discovery results on the reply topic, so reuse its reply manager.
+	if clientOptions.DiscoveryOptions.DiscoveryTopic == c.replyTopic && c.replyTopicManager != nil {
+		if err := c.replyTopicManager.SetDiscoveryHandler(clientOptions.DiscoveryOptions.DiscoveryMessageHandler); err != nil {
+			return errors.NewCommonEdgeXWrapper(err)
+		}
+		c.discoveryOnReply = true
+		return nil
+	}
 	manager, err := topicmgr.TmPool.GetDispatcherTopicManager(clientOptions.DiscoveryOptions.DiscoveryTopic, c.messageBus, lc, ctx)
 	if err != nil {
 		return errors.NewCommonEdgeXWrapper(err)
@@ -302,11 +314,17 @@ func (c *Client) initStatusSubscription(clientOptions *ClientOptions, lc logger.
 	return nil
 }
 
+// Close releases the client's topic subscriptions. When the discovery topic is the reply topic, it waits for the
+// running DiscoveryMessageHandler calls, so it must not be called from that handler.
 func (c *Client) Close() errors.EdgeX {
 	// Note: We don't call c.messageBus.Disconnect() here because the messageBus client may be used by other xrt clients.
 	// The disconnect should be handled by the code that created the messageBus client.
 
 	if c.replyTopicManager != nil {
+		if c.discoveryOnReply {
+			c.replyTopicManager.ClearDiscoveryHandler()
+			c.discoveryOnReply = false
+		}
 		topicmgr.TmPool.ReleaseTopicManager(c.replyTopic)
 		c.replyTopicManager = nil
 	}

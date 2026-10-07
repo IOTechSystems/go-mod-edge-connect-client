@@ -1,0 +1,47 @@
+{
+  "timestamp": "1790738474211",
+  "metrics": [
+    {
+      "name": "Service/10-bacnet_ip",
+      "alias": "1038543805",
+      "timestamp": "1790738474211",
+      "datatype": 14,
+      "properties": {
+        "keys": [
+          "readWrite"
+        ],
+        "values": [
+          {
+            "type": 12,
+            "stringValue": "RW"
+          }
+        ]
+      },
+      "stringValue": "{\"category\":\"XRT::DeviceService\",\"config\":{\"Name\":\"bacnet_ip\"},\"metadata\":{\"content_type\":\"xrt/json-object\"},\"name\":\"10-bacnet_ip\",\"state\":\"Running\",\"type\":\"XRT::BACnetIPDeviceService\"}"
+    },
+    {
+      "name": "Node Control/Rebirth",
+      "timestamp": "1790738474211",
+      "datatype": 11,
+      "properties": {
+        "keys": [
+          "readWrite"
+        ],
+        "values": [
+          {
+            "type": 12,
+            "stringValue": "W"
+          }
+        ]
+      },
+      "booleanValue": false
+    },
+    {
+      "name": "bdSeq",
+      "timestamp": "1790738474211",
+      "datatype": 4,
+      "longValue": "18"
+    }
+  ],
+  "seq": "102"
+}

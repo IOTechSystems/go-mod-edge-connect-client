@@ -47,7 +47,7 @@ func FetchXRTResWithSubTimeout(ctx context.Context, requestId string, requestMap
 
 	subTimeout := time.After(subscribeTimeout)
 
-	if reflect.ValueOf(response).Kind() != reflect.Ptr || reflect.ValueOf(response).Elem().Kind() != reflect.Slice {
+	if reflect.ValueOf(response).Kind() != reflect.Pointer || reflect.ValueOf(response).Elem().Kind() != reflect.Slice {
 		return errors.NewCommonEdgeX(errors.KindServerError, "the response type must be a pointer to a slice", nil)
 	}
 

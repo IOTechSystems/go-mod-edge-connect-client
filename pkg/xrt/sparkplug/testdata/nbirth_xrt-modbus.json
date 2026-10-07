@@ -1,0 +1,83 @@
+{
+  "timestamp": "1790738474211",
+  "metrics": [
+    {
+      "name": "Service/11-logger_debug",
+      "alias": "3509462815",
+      "timestamp": "1790738474211",
+      "datatype": 14,
+      "properties": {
+        "keys": [
+          "readWrite"
+        ],
+        "values": [
+          {
+            "type": 12,
+            "stringValue": "RW"
+          }
+        ]
+      },
+      "stringValue": "{\"category\":\"IOT::Core\",\"config\":{\"Name\":\"console\"},\"metadata\":{\"content_type\":\"xrt/json-object\"},\"name\":\"11-logger_debug\",\"state\":\"Running\",\"type\":\"IOT::Logger\"}"
+    },
+    {
+      "name": "Service/10-bacnet_ip",
+      "alias": "1038543805",
+      "timestamp": "1790738474211",
+      "datatype": 14,
+      "properties": {
+        "keys": [
+          "readWrite"
+        ],
+        "values": [
+          {
+            "type": 12,
+            "stringValue": "RW"
+          }
+        ]
+      },
+      "stringValue": "{\"category\":\"XRT::DeviceService\",\"config\":{\"Name\":\"bacnet_ip\"},\"metadata\":{\"content_type\":\"xrt/json-object\"},\"name\":\"10-bacnet_ip\",\"state\":\"Running\",\"type\":\"XRT::BACnetIPDeviceService\"}"
+    },
+    {
+      "name": "Service/10-modbus",
+      "alias": "3158413542",
+      "timestamp": "1790738474211",
+      "datatype": 14,
+      "properties": {
+        "keys": [
+          "readWrite"
+        ],
+        "values": [
+          {
+            "type": 12,
+            "stringValue": "RW"
+          }
+        ]
+      },
+      "stringValue": "{\"category\":\"XRT::DeviceService\",\"config\":{\"Name\":\"modbus\"},\"metadata\":{\"content_type\":\"xrt/json-object\"},\"name\":\"10-modbus\",\"state\":\"Running\",\"type\":\"XRT::ModbusDeviceService\"}"
+    },
+    {
+      "name": "Node Control/Rebirth",
+      "timestamp": "1790738474211",
+      "datatype": 11,
+      "properties": {
+        "keys": [
+          "readWrite"
+        ],
+        "values": [
+          {
+            "type": 12,
+            "stringValue": "W"
+          }
+        ]
+      },
+      "booleanValue": false
+    },
+    {
+      "name": "bdSeq",
+      "timestamp": "1790738474211",
+      "datatype": 4,
+      "longValue": "38"
+    }
+  ],
+  "seq": "3"
+}
