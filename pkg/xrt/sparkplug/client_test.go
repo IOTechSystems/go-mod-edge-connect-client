@@ -479,6 +479,30 @@ func TestCloseLeavesRoomForAMessageRoutedBeforeUnsubscribe(t *testing.T) {
 	}
 }
 
+// The bus keeps delivering while Unsubscribe deletes the routes one by one, so a message can still be queued when the
+// result arrives.
+func TestUnsubscribeDrainsMessagesQueuedWithTheResult(t *testing.T) {
+	for i := 0; i < 20; i++ { // select picks the result over the queued message about half of the time
+		bus := mocks.NewMessageClient(t)
+		var channels []types.TopicChannel
+		bus.On("SubscribeBinaryData", mock.Anything, mock.Anything).
+			Run(func(args mock.Arguments) { channels = args.Get(0).([]types.TopicChannel) }).Return(nil).Once()
+		bus.On("Unsubscribe", anyTopics(5)...).Run(func(mock.Arguments) {
+			channels[0].Messages <- types.MessageEnvelope{Payload: []byte{}} // handed to the drain loop
+			channels[0].Messages <- types.MessageEnvelope{Payload: []byte{}} // queued while the loop is busy
+		}).Return(nil).Once()
+
+		client, err := NewClient(context.Background(), bus, []string{"iotech"}, time.Second, logger.NewMockClient())
+		require.NoError(t, err)
+		require.NoError(t, client.Close())
+		select {
+		case channels[0].Messages <- types.MessageEnvelope{Payload: []byte{}}:
+		case <-time.After(100 * time.Millisecond):
+			t.Fatalf("run %d: the queued message left no room for a message routed before the unsubscribe", i)
+		}
+	}
+}
+
 func sendAll(t *testing.T, ch chan types.MessageEnvelope, n int, msg types.MessageEnvelope) {
 	t.Helper()
 	for i := 0; i < n; i++ {

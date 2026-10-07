@@ -360,9 +360,23 @@ func (c *Client) unsubscribeDraining(messages <-chan types.MessageEnvelope, mess
 	for {
 		select {
 		case err := <-result:
+			// select may pick the result over a queued message, which would leave no room for the one paho can still
+			// deliver (see NewClient).
+			drainQueued(messages, messageErrors)
 			return err
 		case <-messages:
 		case <-messageErrors:
+		}
+	}
+}
+
+func drainQueued(messages <-chan types.MessageEnvelope, messageErrors <-chan error) {
+	for {
+		select {
+		case <-messages:
+		case <-messageErrors:
+		default:
+			return
 		}
 	}
 }
