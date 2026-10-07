@@ -6,10 +6,8 @@ import (
 	"encoding/json"
 	"strings"
 
-	spb "github.com/IOTechSystems/sparkplug-sdk-go/pkg/sparkplug"
-	"github.com/IOTechSystems/sparkplug-sdk-go/pkg/sparkplug/protobuf"
-
 	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/xrt/sparkplug/models"
+	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/xrt/sparkplug/protobuf"
 )
 
 const (
@@ -29,7 +27,7 @@ type xrtComponent struct {
 // bdSeq returns the bdSeq metric carried by an NBIRTH or NDEATH.
 func bdSeq(payload *protobuf.Payload) (int64, bool) {
 	for _, m := range payload.GetMetrics() {
-		if m.GetName() == spb.BDSEQMetricName {
+		if m.GetName() == bdSeqMetricName {
 			return int64(m.GetLongValue()), true
 		}
 	}

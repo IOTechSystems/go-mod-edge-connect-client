@@ -12,7 +12,7 @@ func TestAllDeviceProfiles(t *testing.T) {
 		name  string
 		reply string
 	}{
-		// Captured from XRT 3.4.6.
+		// Captured from XRT v4.
 		{"objects", `{"client":"c","result":{"profiles":[{"in_use":true,"name":"modbus-sim-profile"},{"in_use":false,"name":"SimpleServer-5"}],"status":0},"type":"xrt.reply:1.0"}`},
 		{"strings", `{"client":"c","result":{"profiles":["modbus-sim-profile","SimpleServer-5"],"status":0},"type":"xrt.reply:1.0"}`},
 	}

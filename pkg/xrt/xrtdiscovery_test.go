@@ -19,7 +19,7 @@ import (
 	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/interfaces"
 )
 
-// Captured from XRT 3.4.6 bacnet_ip: a discovery:trigger is answered on the reply topic by this result, then by the ack.
+// Captured from XRT v4 bacnet_ip: a discovery:trigger is answered on the reply topic by this result, then by the ack.
 const (
 	xrtDiscoveryResult = `{"devices":{"BacnetSimulator1:1234":{"properties":{"IP":"172.20.0.5","InstanceID":1234},` +
 		`"protocols":{"BACnet-IP":{"DeviceInstance":1234}}}},"type":"xrt.device.discovery:1.0"}`
@@ -68,13 +68,13 @@ func (bus *discoveryBus) send(topic, payload string) {
 	ch <- types.MessageEnvelope{Payload: []byte(payload), ContentType: common.ContentTypeJSON, ReceivedTopic: topic}
 }
 
-const discoveryReplyTopic = "spBv1.0/iotech/REPLY/xrt-bacnet-v3.4/bacnet_ip"
+const discoveryReplyTopic = "spBv1.0/iotech/REPLY/xrt-bacnet-v4/bacnet_ip"
 
 func newDiscoveryClient(t *testing.T, bus *discoveryBus, received chan<- string) *Client {
 	t.Helper()
 	handler := func(message types.MessageEnvelope) { received <- string(message.Payload.([]byte)) }
 	opts := NewClientOptions(nil, NewDiscoveryOptions(discoveryReplyTopic, handler, time.Second, nil, 0), nil)
-	client, err := NewXrtClient(t.Context(), bus, "spBv1.0/iotech/REQUEST/xrt-bacnet-v3.4/bacnet_ip", discoveryReplyTopic,
+	client, err := NewXrtClient(t.Context(), bus, "spBv1.0/iotech/REQUEST/xrt-bacnet-v4/bacnet_ip", discoveryReplyTopic,
 		time.Second, logger.MockLogger{}, opts)
 	if err != nil {
 		t.Fatalf("failed to create the client: %v", err)

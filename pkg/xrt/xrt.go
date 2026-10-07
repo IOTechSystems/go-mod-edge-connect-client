@@ -274,7 +274,7 @@ func (c *Client) initDiscoverySubscription(clientOptions *ClientOptions, lc logg
 		clientOptions.DiscoveryOptions.DiscoveryMessageHandler == nil {
 		return nil
 	}
-	// XRT 3.4 sends discovery results on the reply topic, so reuse its reply manager.
+	// XRT v4 sends discovery results on the reply topic, so reuse its reply manager.
 	if clientOptions.DiscoveryOptions.DiscoveryTopic == c.replyTopic && c.replyTopicManager != nil {
 		if err := c.replyTopicManager.SetDiscoveryHandler(clientOptions.DiscoveryOptions.DiscoveryMessageHandler); err != nil {
 			return errors.NewCommonEdgeXWrapper(err)

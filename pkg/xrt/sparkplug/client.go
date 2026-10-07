@@ -13,9 +13,6 @@ import (
 	"time"
 
 	"github.com/IOTechSystems/go-mod-central-ext/v4/pkg/xrtmodels"
-	spb "github.com/IOTechSystems/sparkplug-sdk-go/pkg/sparkplug"
-	"github.com/IOTechSystems/sparkplug-sdk-go/pkg/sparkplug/payload"
-	"github.com/IOTechSystems/sparkplug-sdk-go/pkg/sparkplug/protobuf"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/clients/logger"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/errors"
@@ -25,12 +22,7 @@ import (
 
 	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/interfaces"
 	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/xrt/sparkplug/models"
-)
-
-const (
-	namespace = "spBv1.0"
-	// msgTypeDACK is XRT's acknowledgement of a DCMD; sparkplug-sdk-go has no constant for it.
-	msgTypeDACK = "DACK"
+	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/xrt/sparkplug/protobuf"
 )
 
 // defaultUnsubscribeRetry paces the retries after a failed unsubscribe.
@@ -104,10 +96,10 @@ func subscribeTopics(groups []string) []string {
 	topics := make([]string, 0, len(groups)*5)
 	for _, g := range groups {
 		topics = append(topics,
-			fmt.Sprintf("%s/%s/%s/+", namespace, g, spb.NBIRTH),
-			fmt.Sprintf("%s/%s/%s/+", namespace, g, spb.NDEATH),
-			fmt.Sprintf("%s/%s/%s/+/+", namespace, g, spb.DBIRTH),
-			fmt.Sprintf("%s/%s/%s/+/+", namespace, g, spb.DDEATH),
+			fmt.Sprintf("%s/%s/%s/+", namespace, g, msgTypeNBIRTH),
+			fmt.Sprintf("%s/%s/%s/+", namespace, g, msgTypeNDEATH),
+			fmt.Sprintf("%s/%s/%s/+/+", namespace, g, msgTypeDBIRTH),
+			fmt.Sprintf("%s/%s/%s/+/+", namespace, g, msgTypeDDEATH),
 			fmt.Sprintf("%s/%s/%s/+/+", namespace, g, msgTypeDACK),
 		)
 	}
@@ -142,7 +134,7 @@ func (c *Client) handle(msg types.MessageEnvelope) {
 		c.lc.Warnf("Sparkplug message on %s has a %T payload, expected []byte", msg.ReceivedTopic, msg.Payload)
 		return
 	}
-	_, group, msgType, node, device, err := spb.ParseSparkplugTopic(msg.ReceivedTopic)
+	group, msgType, node, device, err := parseTopic(msg.ReceivedTopic)
 	if err != nil {
 		c.lc.Warnf("skip Sparkplug message: %v", err)
 		return
@@ -171,7 +163,7 @@ func (c *Client) applyOrMarkRebirth(key models.NodeKey, msgType, device string, 
 	c.nodesMu.Lock()
 	defer c.nodesMu.Unlock()
 
-	if msgType == spb.NBIRTH {
+	if msgType == msgTypeNBIRTH {
 		c.applyNBIRTH(key, p)
 		return false
 	}
@@ -180,16 +172,16 @@ func (c *Client) applyOrMarkRebirth(key models.NodeKey, msgType, device string, 
 		return c.markReborn(key)
 	}
 	switch msgType {
-	case spb.NDEATH:
+	case msgTypeNDEATH:
 		c.applyNDEATH(info, p)
-	case spb.DBIRTH:
+	case msgTypeDBIRTH:
 		known := hasDevice(info.Devices, device)
 		info.Devices = replaceDevice(info.Devices, models.Device{Name: device, Metrics: metricDefs(p)})
 		c.nodes[key] = info
 		if !known {
 			c.lc.Debugf("Sparkplug device %s added to %s/%s; the node now has %d devices", device, key.Group, key.Node, len(info.Devices))
 		}
-	case spb.DDEATH:
+	case msgTypeDDEATH:
 		if !hasDevice(info.Devices, device) {
 			break
 		}
@@ -268,7 +260,7 @@ func (c *Client) Nodes() []models.NodeInfo {
 func (c *Client) Rebirth() errors.EdgeX {
 	var firstErr errors.EdgeX
 	for _, g := range c.groups {
-		topic := fmt.Sprintf("%s/%s/%s", namespace, g, spb.NCMD)
+		topic := fmt.Sprintf("%s/%s/%s", namespace, g, msgTypeNCMD)
 		if err := c.publishRebirth(topic); err != nil {
 			c.lc.Error(err.Error())
 			if firstErr == nil {
@@ -280,7 +272,7 @@ func (c *Client) Rebirth() errors.EdgeX {
 }
 
 func (c *Client) rebirthNode(key models.NodeKey) {
-	topic := fmt.Sprintf("%s/%s/%s/%s", namespace, key.Group, spb.NCMD, key.Node)
+	topic := fmt.Sprintf("%s/%s/%s/%s", namespace, key.Group, msgTypeNCMD, key.Node)
 	if err := c.publishRebirth(topic); err != nil {
 		c.lc.Error(err.Error())
 		c.nodesMu.Lock()
@@ -290,7 +282,7 @@ func (c *Client) rebirthNode(key models.NodeKey) {
 }
 
 func (c *Client) publishRebirth(topic string) errors.EdgeX {
-	data, err := proto.Marshal(payload.NewNodeRebirth())
+	data, err := proto.Marshal(newNodeRebirth())
 	if err != nil {
 		return errors.NewCommonEdgeX(errors.KindServerError, "failed to encode the Sparkplug rebirth", err)
 	}

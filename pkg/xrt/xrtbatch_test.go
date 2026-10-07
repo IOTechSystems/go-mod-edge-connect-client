@@ -19,7 +19,7 @@ import (
 	"github.com/edgexfoundry/go-mod-messaging/v4/pkg/types"
 )
 
-// The reply shapes here are captured verbatim from XRT 3.4.6.
+// The reply shapes here are captured verbatim from XRT v4.
 func TestBatchResponseDecoding(t *testing.T) {
 	t.Run("a missing device decodes as nil", assertMissingDeviceDecodesAsNil)
 	t.Run("a failed item decodes under a successful envelope", assertFailedItemUnderSuccessfulEnvelope)
@@ -82,7 +82,7 @@ func assertFailedItemUnderSuccessfulEnvelope(t *testing.T) {
 
 // A schedule reply names its items with a different field and arrives under a different
 // key ("schedules", not "device_results"), which is why the two result shapes are
-// separate types. Both were measured on XRT 3.4.6.
+// separate types. Both were measured on XRT v4.
 func assertScheduleResultNamedFromScheduleField(t *testing.T) {
 	const reply = `{"result":{"schedules":[` +
 		`{"schedule":"s1","status":0},` +
@@ -108,7 +108,7 @@ func assertScheduleResultNamedFromScheduleField(t *testing.T) {
 
 // A read with no argument must omit the selector fields rather than send them empty,
 // because XRT treats an empty request as "all".
-// The want strings are the exact request bodies accepted by XRT 3.4.6, captured from a
+// The want strings are the exact request bodies accepted by XRT v4, captured from a
 // live exchange. Unset selector fields must be absent rather than empty, because XRT
 // reads a request with no selector as "everything".
 func TestBatchRequestEncoding(t *testing.T) {

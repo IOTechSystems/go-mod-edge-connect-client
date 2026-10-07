@@ -12,7 +12,7 @@ import (
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/errors"
 )
 
-// profileListResponse replaces xrtmodels.MultiProfilesResponse, whose []string profiles cannot decode XRT 3.4,
+// profileListResponse replaces xrtmodels.MultiProfilesResponse, whose []string profiles cannot decode XRT v4,
 // which lists each profile as {"name", "in_use"}.
 type profileListResponse struct {
 	xrtmodels.BaseResponse `json:",inline"`

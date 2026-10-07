@@ -4,7 +4,6 @@ go 1.27
 
 require (
 	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.111
-	github.com/IOTechSystems/sparkplug-sdk-go v1.3.8
 	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.1.0-dev.49
 	github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.21
@@ -29,6 +28,7 @@ require (
 	github.com/nats-io/nats.go v1.39.1 // indirect
 	github.com/nats-io/nkeys v0.4.9 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
+	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/x448/float16 v0.8.4 // indirect

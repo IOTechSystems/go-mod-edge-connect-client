@@ -47,7 +47,7 @@ func (rtm *ReplyTopicManager) commandReplyHandler() MessageHandler {
 }
 
 // ReplyTopicManager manages a reply topic with a shared RequestMap for request/response matching.
-// XRT 3.4 also publishes device discovery results on the reply topic, without a request_id; they go to the handler set
+// XRT v4 also publishes device discovery results on the reply topic, without a request_id; they go to the handler set
 // by SetDiscoveryHandler instead.
 type ReplyTopicManager struct {
 	topicManagerBase
