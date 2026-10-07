@@ -301,6 +301,16 @@ func TestHandleSkipsInvalidMessages(t *testing.T) {
 	assert.Empty(t, c.Nodes())
 }
 
+func TestHandleRecoversFromPanic(t *testing.T) {
+	c := newTestClient(mocks.NewMessageClient(t))
+	c.nodes = nil // NBIRTH panics writing to a nil map while holding nodesMu
+
+	assert.NotPanics(t, func() {
+		c.handle(message("spBv1.0/iotech/NBIRTH/xrt-modbus-v3.4", fixture(t, "nbirth_xrt-modbus.json")))
+	})
+	assert.Empty(t, c.Nodes(), "nodesMu must be released after the panic")
+}
+
 func TestDCMDNotImplemented(t *testing.T) {
 	c := newTestClient(mocks.NewMessageClient(t))
 	_, err := c.ReadDeviceResources(context.Background(), modbusNode, "modbus-sim", []string{"Voltage"})

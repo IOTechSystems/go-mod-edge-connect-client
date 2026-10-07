@@ -132,6 +132,11 @@ func (c *Client) run(ctx context.Context, messages <-chan types.MessageEnvelope,
 }
 
 func (c *Client) handle(msg types.MessageEnvelope) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			c.lc.Errorf("panic while handling Sparkplug message on %s: %v", msg.ReceivedTopic, recovered)
+		}
+	}()
 	data, ok := msg.Payload.([]byte)
 	if !ok {
 		c.lc.Warnf("Sparkplug message on %s has a %T payload, expected []byte", msg.ReceivedTopic, msg.Payload)
