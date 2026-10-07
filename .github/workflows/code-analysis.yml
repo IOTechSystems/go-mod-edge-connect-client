@@ -24,4 +24,5 @@ jobs:
     uses: IOTechSystems/github-action-workflow/.github/workflows/reusable-sonarqube-scan.yml@main
     with:
       PROJECT_NAME: go-mod-edge-connect-client
+      USE_PRIVATE_MODULE: true
     secrets: inherit

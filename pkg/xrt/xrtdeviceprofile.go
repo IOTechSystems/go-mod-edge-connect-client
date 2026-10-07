@@ -28,7 +28,12 @@ type profileListItem struct {
 }
 
 func (item *profileListItem) UnmarshalJSON(data []byte) error {
-	if err := json.Unmarshal(data, &item.Name); err == nil {
+	var name *string
+	if err := json.Unmarshal(data, &name); err == nil {
+		if name == nil {
+			return fmt.Errorf("profile name must not be null")
+		}
+		item.Name = *name
 		return nil
 	}
 	type object profileListItem

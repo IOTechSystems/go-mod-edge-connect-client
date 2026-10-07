@@ -59,10 +59,10 @@ func NewClient(ctx context.Context, messageBus messaging.MessageClient, groups [
 		return nil, errors.NewCommonEdgeX(errors.KindContractInvalid, "at least one Sparkplug group is required", nil)
 	}
 
-	messages := make(chan types.MessageEnvelope, 64)
+	messages := make(chan types.MessageEnvelope)
 	messageErrors := make(chan error, 1)
 	topics := subscribeTopics(groups)
-	runCtx, cancel := context.WithCancel(context.Background())
+	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	c := &Client{
 		lc:         lc,
 		messageBus: messageBus,
@@ -332,8 +332,8 @@ func (c *Client) Close() errors.EdgeX {
 	return c.closeErr
 }
 
-// unsubscribe removes the subscriptions while draining their channels: the bus handler blocks on a full channel,
-// and a blocked handler stalls every subscription that shares the bus.
+// unsubscribe removes the subscriptions while draining their channels: the bus handler blocks until each message is
+// read, and a blocked handler stalls every subscription that shares the bus.
 //
 // A failed unsubscribe (e.g. while disconnected) leaves the subscriptions in the bus, which re-creates them on
 // reconnect. Draining and retrying then continue in the background until an unsubscribe succeeds.

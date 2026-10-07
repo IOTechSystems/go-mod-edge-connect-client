@@ -28,7 +28,8 @@ var (
 	bacnetNode = models.NodeKey{Group: "iotech", Node: "xrt-bacnet-v3.4"}
 )
 
-// The testdata files are NBIRTH/DBIRTH captured from XRT 3.4.6 (protojson), e.g. modbus bdSeq 38.
+// The testdata files are NBIRTH/DBIRTH captured from XRT 3.4.6 (protojson), e.g. modbus bdSeq 38, trimmed to the
+// metrics the tests need; each Service/* config keeps only its Name.
 func fixture(t *testing.T, name string) []byte {
 	t.Helper()
 	raw, err := fs.ReadFile(os.DirFS("testdata"), name)
@@ -123,7 +124,7 @@ func TestBirth(t *testing.T) {
 	require.Len(t, node.Devices, 1)
 	device := node.Devices[0]
 	assert.Equal(t, "modbus-sim", device.Name)
-	assert.Len(t, device.Metrics, 28)
+	assert.Len(t, device.Metrics, 3)
 	assert.Contains(t, device.Metrics, models.MetricDef{Name: "Voltage", Alias: 7916512088, Datatype: 6, ReadWrite: "RW"})
 }
 
@@ -481,7 +482,7 @@ func TestNBIRTHReplacesServicesAndMetrics(t *testing.T) {
 	node := onlyNode(t, c)
 	assert.Equal(t, []string{"bacnet_ip"}, node.Services)
 	assert.Equal(t, int64(18), node.BdSeq)
-	assert.Len(t, node.Metrics, 32)
+	assert.Len(t, node.Metrics, 3)
 }
 
 func TestUnknownNodeNDEATHTriggersRebirth(t *testing.T) {
@@ -545,7 +546,7 @@ func TestSetRequestTimeout(t *testing.T) {
 }
 
 // Cancelling during the subscription (e.g. shutdown while the broker settings change) must not leave the topics
-// subscribed with no reader: the bus handler would block on the full channel and stall the shared bus.
+// subscribed with no reader: the bus handler would block on the next message and stall the shared bus.
 func TestNewClientCancelledWhileSubscribing(t *testing.T) {
 	bus := mocks.NewMessageClient(t)
 	events := make(chan string, 4)
