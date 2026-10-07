@@ -60,6 +60,7 @@ type EdgeClient interface {
 	// SetResponseTimeout sets responseTimeout to XrtClient
 	SetResponseTimeout(responseTimeout time.Duration)
 
-	// Close closes the connection of XRT client
+	// Close closes the connection of XRT client. It must not be called from the client's own discovery handler
+	// (see xrt.Client.Close).
 	Close() errors.EdgeX
 }

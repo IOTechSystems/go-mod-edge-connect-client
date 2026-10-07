@@ -57,7 +57,8 @@ type CommandOptions struct {
 
 // DiscoveryOptions provides the config for sending the discovery request like discovery:trigger, device:scan
 type DiscoveryOptions struct {
-	DiscoveryTopic           string
+	DiscoveryTopic string
+	// DiscoveryMessageHandler must not call Close on its own client (see Client.Close).
 	DiscoveryMessageHandler  topicmgr.MessageHandler
 	DiscoveryTimeout         time.Duration
 	ExtendedDiscoveryOptions map[string]any
@@ -313,6 +314,8 @@ func (c *Client) initStatusSubscription(clientOptions *ClientOptions, lc logger.
 	return nil
 }
 
+// Close releases the client's topic subscriptions. When the discovery topic is the reply topic, it waits for the
+// running DiscoveryMessageHandler calls, so it must not be called from that handler.
 func (c *Client) Close() errors.EdgeX {
 	// Note: We don't call c.messageBus.Disconnect() here because the messageBus client may be used by other xrt clients.
 	// The disconnect should be handled by the code that created the messageBus client.
