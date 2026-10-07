@@ -5,6 +5,7 @@ go 1.27
 require (
 	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.111
 	github.com/IOTechSystems/sparkplug-sdk-go v1.3.8
+	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.1.0-dev.49
 	github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.21
 	github.com/stretchr/testify v1.12.1
@@ -12,7 +13,6 @@ require (
 )
 
 require (
-	github.com/eclipse/paho.mqtt.golang v1.5.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.4 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.15 // indirect
 	github.com/go-kit/log v0.2.1 // indirect

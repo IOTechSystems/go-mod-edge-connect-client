@@ -15,6 +15,8 @@ import (
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/errors"
 	"github.com/edgexfoundry/go-mod-messaging/v4/messaging"
 	"github.com/edgexfoundry/go-mod-messaging/v4/pkg/types"
+
+	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/interfaces"
 )
 
 // Captured from XRT 3.4.6 bacnet_ip: a discovery:trigger is answered on the reply topic by this result, then by the ack.
@@ -148,5 +150,79 @@ func TestDiscoveryOnReplyTopic_SecondDiscoveryRejected(t *testing.T) {
 	case <-received:
 	case <-time.After(time.Second):
 		t.Fatal("the running discovery lost its handler")
+	}
+}
+
+// newBlockingDiscoveryClient's handler closes started when called, then blocks until release is closed.
+func newBlockingDiscoveryClient(t *testing.T, bus *discoveryBus, started, release chan struct{}) (interfaces.EdgeClient, errors.EdgeX) {
+	handler := func(types.MessageEnvelope) { close(started); <-release }
+	opts := NewClientOptions(nil, NewDiscoveryOptions(discoveryReplyTopic, handler, time.Second, nil, 0), nil)
+	return NewXrtClient(t.Context(), bus, "request", discoveryReplyTopic, time.Second, logger.MockLogger{}, opts)
+}
+
+func closeAsync(client interfaces.EdgeClient) <-chan errors.EdgeX {
+	closed := make(chan errors.EdgeX, 1)
+	go func() { closed <- client.Close() }()
+	return closed
+}
+
+func TestDiscoveryOnReplyTopic_CloseWaitsForHandler(t *testing.T) {
+	bus := &discoveryBus{}
+	started, release := make(chan struct{}), make(chan struct{})
+	client, err := newBlockingDiscoveryClient(t, bus, started, release)
+	if err != nil {
+		t.Fatalf("failed to create the client: %v", err)
+	}
+	bus.send(discoveryReplyTopic, xrtDiscoveryResult)
+	<-started
+
+	closed := closeAsync(client)
+	select {
+	case <-closed:
+		t.Fatal("Close returned while the discovery handler was still running")
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(release)
+	if err := <-closed; err != nil {
+		t.Fatalf("failed to close the client: %v", err)
+	}
+}
+
+// The next discovery on the same reply topic can start while the previous client is still closing.
+func TestDiscoveryOnReplyTopic_CloseDoesNotWaitForNextHandler(t *testing.T) {
+	bus := &discoveryBus{}
+	startedA, releaseA := make(chan struct{}), make(chan struct{})
+	a, err := newBlockingDiscoveryClient(t, bus, startedA, releaseA)
+	if err != nil {
+		t.Fatalf("failed to create the client: %v", err)
+	}
+	bus.send(discoveryReplyTopic, xrtDiscoveryResult)
+	<-startedA
+	closedA := closeAsync(a)
+
+	startedB, releaseB := make(chan struct{}), make(chan struct{})
+	var b interfaces.EdgeClient
+	deadline := time.Now().Add(time.Second)
+	for { // retry until a has cleared its handler
+		if b, err = newBlockingDiscoveryClient(t, bus, startedB, releaseB); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the next discovery could not start: %v", err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	defer func() { close(releaseB); _ = b.Close() }()
+	bus.send(discoveryReplyTopic, xrtDiscoveryResult)
+	<-startedB
+
+	close(releaseA)
+	select {
+	case err := <-closedA:
+		if err != nil {
+			t.Fatalf("failed to close the client: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Close waited for the next client's discovery handler")
 	}
 }

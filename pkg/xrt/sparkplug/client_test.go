@@ -6,10 +6,12 @@ import (
 	"context"
 	"io/fs"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/IOTechSystems/sparkplug-sdk-go/pkg/sparkplug/protobuf"
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/clients/logger"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/errors"
 	"github.com/edgexfoundry/go-mod-messaging/v4/messaging/mocks"
@@ -422,6 +424,51 @@ func TestFailedUnsubscribeKeepsDrainingAndRetries(t *testing.T) {
 	}
 }
 
+// closeWithUnsubscribeErrors closes a client whose unsubscribes fail with errs in turn, then the last one forever, and
+// returns how many unsubscribes it made after waiting for any further retry.
+func closeWithUnsubscribeErrors(t *testing.T, errs ...error) int {
+	t.Helper()
+	bus := mocks.NewMessageClient(t)
+	bus.On("SubscribeBinaryData", mock.Anything, mock.Anything).Return(nil).Once()
+	var calls atomic.Int32
+	bus.On("Unsubscribe", anyTopics(5)...).Return(func(...string) error {
+		return errs[min(int(calls.Add(1)), len(errs))-1]
+	})
+
+	client, err := NewClient(context.Background(), bus, []string{"iotech"}, time.Second, logger.NewMockClient())
+	require.NoError(t, err)
+	client.(*Client).unsubRetry = 10 * time.Millisecond
+	require.Error(t, client.Close())
+	require.Eventually(t, func() bool { return int(calls.Load()) >= len(errs) }, time.Second, 5*time.Millisecond)
+	time.Sleep(50 * time.Millisecond) // room for a retry that should not happen
+	return int(calls.Load())
+}
+
+func TestDisconnectedBusIsNotRetried(t *testing.T) {
+	assert.Equal(t, 1, closeWithUnsubscribeErrors(t, mqtt.ErrNotConnected))
+}
+
+func TestRetryStopsOnceBusDisconnected(t *testing.T) {
+	assert.Equal(t, 2, closeWithUnsubscribeErrors(t, assert.AnError, mqtt.ErrNotConnected))
+}
+
+func TestCloseLeavesRoomForAMessageRoutedBeforeUnsubscribe(t *testing.T) {
+	bus := mocks.NewMessageClient(t)
+	var channels []types.TopicChannel
+	bus.On("SubscribeBinaryData", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { channels = args.Get(0).([]types.TopicChannel) }).Return(nil).Once()
+	bus.On("Unsubscribe", anyTopics(5)...).Return(nil).Once()
+
+	client, err := NewClient(context.Background(), bus, []string{"iotech"}, time.Second, logger.NewMockClient())
+	require.NoError(t, err)
+	require.NoError(t, client.Close())
+	select {
+	case channels[0].Messages <- types.MessageEnvelope{Payload: []byte{}}:
+	case <-time.After(time.Second):
+		t.Fatal("a message routed before the unsubscribe blocked the bus")
+	}
+}
+
 func sendAll(t *testing.T, ch chan types.MessageEnvelope, n int, msg types.MessageEnvelope) {
 	t.Helper()
 	for i := 0; i < n; i++ {
@@ -448,6 +495,31 @@ func TestSlowRebirthDoesNotBlockHandling(t *testing.T) {
 	sendAll(t, channels[0].Messages, 200, message("spBv1.0/iotech/DDEATH/xrt-modbus-v3.4/modbus-sim", nil))
 	close(release)
 	require.NoError(t, client.Close())
+}
+
+func TestCloseWaitsForRebirth(t *testing.T) {
+	bus := mocks.NewMessageClient(t)
+	var channels []types.TopicChannel
+	bus.On("SubscribeBinaryData", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { channels = args.Get(0).([]types.TopicChannel) }).Return(nil).Once()
+	started, release := make(chan struct{}), make(chan struct{})
+	bus.On("PublishBinaryData", mock.Anything, "spBv1.0/iotech/NCMD/xrt-modbus-v3.4").
+		Run(func(mock.Arguments) { close(started); <-release }).Return(nil).Once()
+	bus.On("Unsubscribe", anyTopics(5)...).Return(nil).Once()
+
+	client, err := NewClient(context.Background(), bus, []string{"iotech"}, time.Second, logger.NewMockClient())
+	require.NoError(t, err)
+	channels[0].Messages <- message("spBv1.0/iotech/DDEATH/xrt-modbus-v3.4/modbus-sim", nil)
+	<-started
+	closed := make(chan error)
+	go func() { closed <- client.Close() }()
+	select {
+	case <-closed:
+		t.Fatal("Close returned while the rebirth was still publishing")
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(release)
+	require.NoError(t, <-closed)
 }
 
 // Topics subscribed early deliver while SubscribeBinaryData is still running.
@@ -546,7 +618,7 @@ func TestSetRequestTimeout(t *testing.T) {
 }
 
 // Cancelling during the subscription (e.g. shutdown while the broker settings change) must not leave the topics
-// subscribed with no reader: the bus handler would block on the next message and stall the shared bus.
+// subscribed with no reader: the bus handler would block once the channel is full and stall the shared bus.
 func TestNewClientCancelledWhileSubscribing(t *testing.T) {
 	bus := mocks.NewMessageClient(t)
 	events := make(chan string, 4)

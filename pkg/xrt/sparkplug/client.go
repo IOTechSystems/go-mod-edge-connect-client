@@ -5,6 +5,7 @@ package sparkplug
 import (
 	"cmp"
 	"context"
+	goerrors "errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -15,6 +16,7 @@ import (
 	spb "github.com/IOTechSystems/sparkplug-sdk-go/pkg/sparkplug"
 	"github.com/IOTechSystems/sparkplug-sdk-go/pkg/sparkplug/payload"
 	"github.com/IOTechSystems/sparkplug-sdk-go/pkg/sparkplug/protobuf"
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/clients/logger"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/errors"
 	"github.com/edgexfoundry/go-mod-messaging/v4/messaging"
@@ -40,11 +42,12 @@ type Client struct {
 	messageBus     messaging.MessageClient
 	groups         []string
 	topics         []string
-	requestTimeout atomic.Int64       // DCMD -> DACK, in nanoseconds; unused until DCMD is implemented
+	requestTimeout atomic.Int64       // in nanoseconds (see interfaces.SparkplugClient.SetRequestTimeout)
 	cancel         context.CancelFunc // stops the message goroutine, which then unsubscribes
 	done           chan struct{}      // closed when the message goroutine has unsubscribed and exited
 	closeErr       errors.EdgeX       // unsubscribe result; written before done is closed
 	unsubRetry     time.Duration      // retry interval after a failed unsubscribe
+	rebirths       sync.WaitGroup     // in-flight rebirthNode publishes; Close waits for them
 
 	nodesMu sync.RWMutex
 	nodes   map[models.NodeKey]models.NodeInfo
@@ -52,14 +55,16 @@ type Client struct {
 }
 
 // NewClient subscribes to NBIRTH/NDEATH/DBIRTH/DDEATH/DACK of the groups; it does not publish a rebirth.
-// requestTimeout is how long a DCMD waits for its DACK.
+// requestTimeout is the initial value of SetRequestTimeout.
 func NewClient(ctx context.Context, messageBus messaging.MessageClient, groups []string,
 	requestTimeout time.Duration, lc logger.LoggingClient) (interfaces.SparkplugClient, errors.EdgeX) {
 	if len(groups) == 0 {
 		return nil, errors.NewCommonEdgeX(errors.KindContractInvalid, "at least one Sparkplug group is required", nil)
 	}
 
-	messages := make(chan types.MessageEnvelope)
+	// One slot for the message paho may still deliver after Unsubscribe returns: its router calls a matched handler
+	// after releasing the lock that deleteRoute takes, so the drain can stop just before that send.
+	messages := make(chan types.MessageEnvelope, 1)
 	messageErrors := make(chan error, 1)
 	topics := subscribeTopics(groups)
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
@@ -152,7 +157,7 @@ func (c *Client) handle(msg types.MessageEnvelope) {
 	key := models.NodeKey{Group: group, Node: node}
 	if c.applyOrMarkRebirth(key, msgType, device, &p) {
 		// Published in the background: a publish can wait up to the bus timeout, and message handling must not stop.
-		go c.rebirthNode(key)
+		c.rebirths.Go(func() { c.rebirthNode(key) })
 	}
 }
 
@@ -230,13 +235,7 @@ func (c *Client) markReborn(key models.NodeKey) bool {
 }
 
 func replaceDevice(devices []models.Device, device models.Device) []models.Device {
-	out := make([]models.Device, 0, len(devices)+1)
-	for _, d := range devices {
-		if d.Name != device.Name {
-			out = append(out, d)
-		}
-	}
-	return append(out, device)
+	return append(removeDevice(devices, device.Name), device)
 }
 
 func hasDevice(devices []models.Device, name string) bool {
@@ -324,25 +323,29 @@ func (c *Client) closeAndLog() {
 	}
 }
 
-// Close must be called before the shared MessageClient is disconnected; otherwise the unsubscribe keeps failing and
-// is retried in the background for as long as the process runs (see unsubscribe).
+// Close must be called before the shared MessageClient is disconnected; otherwise the unsubscribe fails and the
+// subscriptions stay registered in the bus (see unsubscribe).
 func (c *Client) Close() errors.EdgeX {
 	c.cancel()
 	<-c.done
+	c.rebirths.Wait()
 	return c.closeErr
 }
 
 // unsubscribe removes the subscriptions while draining their channels: the bus handler blocks until each message is
 // read, and a blocked handler stalls every subscription that shares the bus.
 //
-// A failed unsubscribe (e.g. while disconnected) leaves the subscriptions in the bus, which re-creates them on
-// reconnect. Draining and retrying then continue in the background until an unsubscribe succeeds.
+// A failed unsubscribe (e.g. while reconnecting) leaves the subscriptions in the bus, which re-creates them on
+// reconnect. Draining and retrying then continue in the background until an unsubscribe succeeds or the bus is
+// disconnected (see busDisconnected).
 func (c *Client) unsubscribe(messages <-chan types.MessageEnvelope, messageErrors <-chan error) errors.EdgeX {
 	err := c.unsubscribeDraining(messages, messageErrors)
 	if err == nil {
 		return nil
 	}
-	go c.retryUnsubscribe(messages, messageErrors)
+	if !busDisconnected(err) {
+		go c.retryUnsubscribe(messages, messageErrors)
+	}
 	return errors.NewCommonEdgeX(errors.KindCommunicationError, "failed to unsubscribe from Sparkplug BIRTH/DEATH/DACK", err)
 }
 
@@ -367,9 +370,20 @@ func (c *Client) retryUnsubscribe(messages <-chan types.MessageEnvelope, message
 		case <-messages:
 		case <-messageErrors:
 		case <-ticker.C:
-			if err := c.unsubscribeDraining(messages, messageErrors); err == nil {
+			err := c.unsubscribeDraining(messages, messageErrors)
+			if err == nil {
+				return
+			}
+			if busDisconnected(err) {
+				c.lc.Warnf("stop retrying the Sparkplug unsubscribe because the message bus is disconnected: %v", err)
 				return
 			}
 		}
 	}
+}
+
+// busDisconnected reports whether paho rejected the call because the client is disconnected and not reconnecting, so
+// the bus delivers nothing more unless the caller connects that same client again.
+func busDisconnected(err error) bool {
+	return goerrors.Is(err, mqtt.ErrNotConnected)
 }

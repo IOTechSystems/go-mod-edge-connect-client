@@ -30,9 +30,12 @@ func TestAllDeviceProfiles(t *testing.T) {
 }
 
 func TestAllDeviceProfilesInvalidItem(t *testing.T) {
-	reply := `{"client":"c","result":{"profiles":[42],"status":0},"type":"xrt.reply:1.0"}`
-
-	if _, err := newReplyingClient(t, reply).AllDeviceProfiles(t.Context()); err == nil {
-		t.Fatal("a profile that is neither a name nor an object must fail")
+	for _, item := range []string{`42`, `null`, `""`, `{"in_use":true}`, `{"in_use":true,"name":null}`, `{"name":""}`} {
+		t.Run(item, func(t *testing.T) {
+			reply := `{"client":"c","result":{"profiles":[` + item + `],"status":0},"type":"xrt.reply:1.0"}`
+			if _, err := newReplyingClient(t, reply).AllDeviceProfiles(t.Context()); err == nil {
+				t.Fatal("a profile without a name must fail")
+			}
+		})
 	}
 }

@@ -55,6 +55,9 @@ type ReplyTopicManager struct {
 
 	discoveryMutex   sync.Mutex
 	discoveryHandler MessageHandler
+	// discoveryCalls counts the running calls of discoveryHandler. Each handler gets its own, so clearing one never
+	// waits for the next handler's calls.
+	discoveryCalls *sync.WaitGroup
 }
 
 func newReplyTopicManager(topic string, messageBus messaging.MessageClient, lc logger.LoggingClient, cancelFunc context.CancelFunc) *ReplyTopicManager {
@@ -82,26 +85,36 @@ func (rtm *ReplyTopicManager) SetDiscoveryHandler(handler MessageHandler) errors
 			fmt.Sprintf("topic '%s' already has a discovery handler", rtm.Topic), nil)
 	}
 	rtm.discoveryHandler = handler
+	rtm.discoveryCalls = &sync.WaitGroup{}
 	return nil
 }
 
-// ClearDiscoveryHandler removes the handler set by SetDiscoveryHandler.
+// ClearDiscoveryHandler removes the handler set by SetDiscoveryHandler and waits for its running calls to finish, so
+// it must not be called from that handler.
 func (rtm *ReplyTopicManager) ClearDiscoveryHandler() {
 	rtm.discoveryMutex.Lock()
-	defer rtm.discoveryMutex.Unlock()
-	rtm.discoveryHandler = nil
+	calls := rtm.discoveryCalls
+	rtm.discoveryHandler, rtm.discoveryCalls = nil, nil
+	rtm.discoveryMutex.Unlock()
+	if calls != nil {
+		calls.Wait()
+	}
 }
 
 // handleDiscovery runs the discovery handler on its own goroutine, so a slow handler never blocks the replies.
 func (rtm *ReplyTopicManager) handleDiscovery(message types.MessageEnvelope) {
 	rtm.discoveryMutex.Lock()
-	handler := rtm.discoveryHandler
+	handler, calls := rtm.discoveryHandler, rtm.discoveryCalls
+	if handler != nil {
+		calls.Add(1) // under the lock, so no call starts after ClearDiscoveryHandler
+	}
 	rtm.discoveryMutex.Unlock()
 	if handler == nil {
 		rtm.lc.Debugf("dropping XRT device discovery result with no discovery running, topic: %s", message.ReceivedTopic)
 		return
 	}
 	go func() {
+		defer calls.Done()
 		defer func() {
 			if recovered := recover(); recovered != nil {
 				rtm.lc.Errorf("panic in the discovery handler for topic %s: %v", rtm.Topic, recovered)

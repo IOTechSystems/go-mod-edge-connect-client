@@ -25,7 +25,7 @@ type SparkplugClient interface {
 	WriteDeviceResources(ctx context.Context, node models.NodeKey, device string,
 		resourceValuePairs, options map[string]any) errors.EdgeX
 
-	// SetRequestTimeout sets how long a DCMD waits for its DACK.
+	// SetRequestTimeout sets how long a DCMD waits for its DACK; unused until DCMD is implemented.
 	SetRequestTimeout(requestTimeout time.Duration)
 	// Close stops message handling and unsubscribes. The message bus stays connected because it is shared; call Close
 	// before disconnecting it.

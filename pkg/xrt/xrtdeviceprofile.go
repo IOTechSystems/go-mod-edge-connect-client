@@ -28,16 +28,19 @@ type profileListItem struct {
 }
 
 func (item *profileListItem) UnmarshalJSON(data []byte) error {
-	var name *string
-	if err := json.Unmarshal(data, &name); err == nil {
-		if name == nil {
-			return fmt.Errorf("profile name must not be null")
+	var name string
+	if err := json.Unmarshal(data, &name); err != nil {
+		type object profileListItem
+		if err := json.Unmarshal(data, (*object)(item)); err != nil {
+			return err
 		}
-		item.Name = *name
-		return nil
+		name = item.Name
 	}
-	type object profileListItem
-	return json.Unmarshal(data, (*object)(item))
+	if name == "" {
+		return fmt.Errorf("profile without a name: %s", data)
+	}
+	item.Name = name
+	return nil
 }
 
 func (c *Client) AllDeviceProfiles(ctx context.Context) ([]string, errors.EdgeX) {
