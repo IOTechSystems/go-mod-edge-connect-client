@@ -3,7 +3,7 @@ module github.com/IOTechSystems/go-mod-edge-connect-client/v4
 go 1.27
 
 require (
-	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.111
+	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.112
 	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.1.0-dev.49
 	github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.21
