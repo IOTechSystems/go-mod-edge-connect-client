@@ -1,0 +1,29 @@
+{
+  "timestamp": "1792477039318",
+  "metrics": [
+    {
+      "name": "Device Control/CommandId",
+      "alias": "7697640736",
+      "timestamp": "1792477039318",
+      "stringValue": "2d798ef4-ddfd-4e33-9f4a-afa1631b1b45"
+    },
+    {
+      "name": "analog_output_1:present-value",
+      "alias": "7095358569",
+      "timestamp": "1792477039318",
+      "floatValue": 66.5
+    },
+    {
+      "name": "analog_value_1:present-value",
+      "alias": "4971401789",
+      "timestamp": "1792477039318",
+      "floatValue": 61
+    },
+    {
+      "name": "analog_value_0:present-value",
+      "alias": "7132067516",
+      "timestamp": "1792477039318",
+      "floatValue": 162
+    }
+  ]
+}

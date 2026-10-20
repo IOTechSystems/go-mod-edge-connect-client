@@ -1,0 +1,18 @@
+{
+  "timestamp": "1792477042949",
+  "metrics": [
+    {
+      "name": "Device Control/CommandId",
+      "alias": "7697640736",
+      "timestamp": "1792477042949",
+      "stringValue": "4f91adef-a847-4536-8e4d-acb666e4fc30"
+    },
+    {
+      "name": "analog_value_0:present-value",
+      "alias": "7132067516",
+      "timestamp": "1792477042949",
+      "datatype": 9,
+      "isNull": true
+    }
+  ]
+}

@@ -30,17 +30,20 @@ var (
 	bacnetNode = models.NodeKey{Group: "iotech", Node: "xrt-bacnet-v4"}
 )
 
-// The testdata files are NBIRTH/DBIRTH captured from XRT v4 (protojson), e.g. modbus bdSeq 38, trimmed to the
+// The testdata files are NBIRTH/DBIRTH/DACK captured from XRT (protojson), e.g. modbus bdSeq 38, trimmed to the
 // metrics the tests need; each Service/* config keeps only its Name.
 func fixture(t *testing.T, name string) []byte {
+	t.Helper()
+	return mustMarshal(t, fixturePayload(t, name))
+}
+
+func fixturePayload(t *testing.T, name string) *protobuf.Payload {
 	t.Helper()
 	raw, err := fs.ReadFile(os.DirFS("testdata"), name)
 	require.NoError(t, err)
 	var p protobuf.Payload
 	require.NoError(t, protojson.Unmarshal(raw, &p))
-	data, err := proto.Marshal(&p)
-	require.NoError(t, err)
-	return data
+	return &p
 }
 
 func deathPayload(t *testing.T, seq int64) []byte {
@@ -60,12 +63,13 @@ func message(topic string, data []byte) types.MessageEnvelope {
 // newTestClient builds a Client without subscribing, so messages are fed straight to handle.
 func newTestClient(bus *mocks.MessageClient) *Client {
 	return &Client{
-		lc:         logger.NewMockClient(),
-		messageBus: bus,
-		groups:     []string{"iotech"},
-		cancel:     func() {},
-		nodes:      make(map[models.NodeKey]models.NodeInfo),
-		reborn:     make(map[models.NodeKey]struct{}),
+		lc:          logger.NewMockClient(),
+		messageBus:  bus,
+		groups:      []string{"iotech"},
+		cancel:      func() {},
+		nodes:       make(map[models.NodeKey]models.NodeInfo),
+		reborn:      make(map[models.NodeKey]struct{}),
+		dackWaiters: make(map[string]chan *protobuf.Payload),
 	}
 }
 
@@ -110,6 +114,14 @@ func TestNewClientWithoutGroups(t *testing.T) {
 	_, err := NewClient(context.Background(), mocks.NewMessageClient(t), nil, time.Second, logger.NewMockClient())
 	require.Error(t, err)
 	assert.Equal(t, errors.KindContractInvalid, errors.Kind(err))
+}
+
+func TestNewClientWithoutPositiveTimeout(t *testing.T) {
+	for _, timeout := range []time.Duration{0, -time.Second} {
+		_, err := NewClient(context.Background(), mocks.NewMessageClient(t), []string{"iotech"}, timeout, logger.NewMockClient())
+		require.Error(t, err, timeout)
+		assert.Equal(t, errors.KindContractInvalid, errors.Kind(err))
+	}
 }
 
 func TestBirth(t *testing.T) {
@@ -316,14 +328,6 @@ func TestHandleRecoversFromPanic(t *testing.T) {
 	assert.Empty(t, c.Nodes(), "nodesMu must be released after the panic")
 }
 
-func TestDCMDNotImplemented(t *testing.T) {
-	c := newTestClient(mocks.NewMessageClient(t))
-	_, err := c.ReadDeviceResources(context.Background(), modbusNode, "modbus-sim", []string{"Voltage"})
-	assert.Equal(t, errors.KindNotImplemented, errors.Kind(err))
-	err = c.WriteDeviceResources(context.Background(), modbusNode, "modbus-sim", map[string]any{"Voltage": 1}, nil)
-	assert.Equal(t, errors.KindNotImplemented, errors.Kind(err))
-}
-
 func anyTopics(n int) []any {
 	args := make([]any, n)
 	for i := range args {
@@ -403,7 +407,7 @@ func TestFailedRebirthIsRetried(t *testing.T) {
 	waitPublished(t, retried)
 }
 
-func TestDACKIsIgnored(t *testing.T) {
+func TestUnmatchedDACKIsIgnored(t *testing.T) {
 	c := newTestClient(mocks.NewMessageClient(t)) // a rebirth publish would fail the mock
 	c.handle(message("spBv1.0/iotech/DACK/xrt-modbus-v4/modbus-sim", mustMarshal(t, &protobuf.Payload{})))
 	assert.Empty(t, c.Nodes())

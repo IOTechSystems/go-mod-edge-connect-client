@@ -18,11 +18,14 @@ const (
 	msgTypeDBIRTH = "DBIRTH"
 	msgTypeDDEATH = "DDEATH"
 	msgTypeNCMD   = "NCMD"
+	msgTypeDCMD   = "DCMD"
 	// msgTypeDACK is XRT's acknowledgement of a DCMD; it is not part of the Sparkplug B spec.
 	msgTypeDACK = "DACK"
 
 	bdSeqMetricName       = "bdSeq"
 	nodeRebirthMetricName = "Node Control/Rebirth"
+	commandIDMetricName   = "Device Control/CommandId"
+	ackGoodMetricName     = "Device Control/AckGood"
 )
 
 // parseTopic splits a Sparkplug topic, namespace/group_id/message_type/edge_node_id/[device_id] (spec 3.0.0, 4.1).

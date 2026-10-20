@@ -26,12 +26,18 @@ type xrtComponent struct {
 
 // bdSeq returns the bdSeq metric carried by an NBIRTH or NDEATH.
 func bdSeq(payload *protobuf.Payload) (int64, bool) {
+	m := findMetric(payload, bdSeqMetricName)
+	return int64(m.GetLongValue()), m != nil
+}
+
+// findMetric returns the first metric named name, or nil.
+func findMetric(payload *protobuf.Payload, name string) *protobuf.Payload_Metric {
 	for _, m := range payload.GetMetrics() {
-		if m.GetName() == bdSeqMetricName {
-			return int64(m.GetLongValue()), true
+		if m.GetName() == name {
+			return m
 		}
 	}
-	return 0, false
+	return nil
 }
 
 // isSameOrNewerBdSeq reports whether an NDEATH bdSeq belongs to the stored session or to a later one whose NBIRTH
@@ -70,17 +76,18 @@ func metricDefs(payload *protobuf.Payload) []models.MetricDef {
 			Name:      m.GetName(),
 			Alias:     m.GetAlias(),
 			Datatype:  m.GetDatatype(),
-			ReadWrite: stringProperty(m.GetProperties(), readWriteProperty),
+			ReadWrite: property(m.GetProperties(), readWriteProperty).GetStringValue(),
 		})
 	}
 	return defs
 }
 
-func stringProperty(props *protobuf.Payload_PropertySet, key string) string {
+// property returns the value of key in props, or nil.
+func property(props *protobuf.Payload_PropertySet, key string) *protobuf.Payload_PropertyValue {
 	for i, k := range props.GetKeys() {
 		if k == key && i < len(props.GetValues()) {
-			return props.GetValues()[i].GetStringValue()
+			return props.GetValues()[i]
 		}
 	}
-	return ""
+	return nil
 }

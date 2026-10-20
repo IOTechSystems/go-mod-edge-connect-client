@@ -52,7 +52,7 @@ pkg/xrt/topicmgr/
 - All public methods return `errors.EdgeX`, never plain `error`.
 - Wrap errors with `errors.NewCommonEdgeX(errors.Kind, msg, err)` or `errors.NewCommonEdgeXWrapper(err)`.
 - `context.Context` is the first parameter everywhere and is threaded into subscriptions for cancellation.
-- Shared state uses `sync.RWMutex`; take a snapshot under lock, release lock, then execute handlers.
+- Shared state uses `sync.RWMutex`; take a snapshot under lock, release lock, then execute handlers. A plain `sync.Mutex` is fine when every access writes (e.g. the Sparkplug `Client.dackWaiters` map).
 - Panic recovery is deferred in all message handler goroutines (see `topicManagerBase.startListening`).
 - Branch naming: `EDX-XXXX-branch`. Commit messages must reference the Jira ticket: `EDX-XXXX ...`.
 
