@@ -26,6 +26,7 @@ const (
 	nodeRebirthMetricName = "Node Control/Rebirth"
 	commandIDMetricName   = "Device Control/CommandId"
 	ackGoodMetricName     = "Device Control/AckGood"
+	profileMetricName     = "Properties/Profile"
 )
 
 // parseTopic splits a Sparkplug topic, namespace/group_id/message_type/edge_node_id/[device_id] (spec 3.0.0, 4.1).

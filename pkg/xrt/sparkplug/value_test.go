@@ -5,11 +5,15 @@ package sparkplug
 import (
 	"math"
 	"testing"
+	"time"
 
+	"github.com/edgexfoundry/go-mod-core-contracts/v4/common"
+	"github.com/edgexfoundry/go-mod-core-contracts/v4/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/IOTechSystems/go-mod-central-ext/v4/pkg/xrtmodels"
 	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/xrt/sparkplug/models"
 	"github.com/IOTechSystems/go-mod-edge-connect-client/v4/pkg/xrt/sparkplug/protobuf"
 )
@@ -103,6 +107,8 @@ func TestReadingValue(t *testing.T) {
 		{"Int32", protobuf.DataType_Int32, intValue(0x80000000), float64(math.MinInt32)},
 		{"Int64", protobuf.DataType_Int64, longValue(math.MaxUint64), float64(-1)},
 		{"UInt8", protobuf.DataType_UInt8, intValue(255), float64(255)},
+		{"UInt8 beyond its width", protobuf.DataType_UInt8, intValue(0x1FF), float64(255)},
+		{"UInt16 beyond its width", protobuf.DataType_UInt16, intValue(0x1FFFF), float64(65535)},
 		{"UInt32", protobuf.DataType_UInt32, intValue(math.MaxUint32), float64(math.MaxUint32)},
 		{"UInt64", protobuf.DataType_UInt64, longValue(1 << 63), float64(1 << 63)},
 		{"Float", protobuf.DataType_Float, &protobuf.Payload_Metric{Value: &protobuf.Payload_Metric_FloatValue{FloatValue: 0.5}}, 0.5},
@@ -124,6 +130,8 @@ func TestReadingValueMismatch(t *testing.T) {
 	assert.False(t, ok, "a value in another oneof field must not read as zero")
 	_, ok = readingValue(protobuf.DataType_Int64, &protobuf.Payload_Metric{IsNull: proto.Bool(true)})
 	assert.False(t, ok)
+	_, ok = readingValue(protobuf.DataType_UInt8Array, &protobuf.Payload_Metric{Value: &protobuf.Payload_Metric_IntValue{IntValue: 1}})
+	assert.False(t, ok, "an array without bytes_value must not read as empty")
 }
 
 func TestNewReadingOrigin(t *testing.T) {
@@ -137,6 +145,11 @@ func TestNewReadingOrigin(t *testing.T) {
 	reading, err = newReading(def, m, ack)
 	require.NoError(t, err)
 	assert.Equal(t, int64(2_000_000), reading.Origin, "a metric without a timestamp takes the DACK one")
+
+	before := time.Now().UnixNano()
+	reading, err = newReading(def, m, &protobuf.Payload{})
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, reading.Origin, before-int64(time.Millisecond), "without any timestamp, the origin is now")
 }
 
 func TestNewReadingInexactInteger(t *testing.T) {
@@ -164,4 +177,72 @@ func TestNewReadingInexactInteger(t *testing.T) {
 		}
 		assert.EqualError(t, err, tt.err, "%s %d", tt.dt, tt.value)
 	}
+}
+
+var objectDef = models.MetricDef{Name: "obj", Alias: 1, Datatype: uint32(protobuf.DataType_Text), ContentType: "xrt/json-object"}
+
+func TestObjectJSON(t *testing.T) {
+	s, err := objectJSON(`{"a": 2}`)
+	require.NoError(t, err)
+	assert.Equal(t, `{"a": 2}`, s)
+	s, err = objectJSON(map[string]any{"a": 2, "b": "c"})
+	require.NoError(t, err)
+	assert.Equal(t, `{"a":2,"b":"c"}`, s)
+	_, err = objectJSON("abc")
+	assert.Error(t, err)
+	// Unlike other datatypes, an Object takes null.
+	s, err = objectJSON(nil)
+	require.NoError(t, err)
+	assert.Equal(t, "null", s)
+}
+
+func TestWriteMetricObject(t *testing.T) {
+	m, err := writeMetric(objectDef, map[string]any{"a": 2})
+	require.NoError(t, err)
+	assert.Equal(t, `{"a":2}`, m.GetStringValue())
+
+	_, err = writeMetric(objectDef, "abc")
+	assert.EqualError(t, err, `invalid Object value abc for obj -> value "abc" is not JSON`)
+	textDef := objectDef
+	textDef.ContentType = ""
+	_, err = writeMetric(textDef, map[string]any{"a": 2})
+	assert.Error(t, err, "only an Object takes a map")
+}
+
+func TestObjectReadingConvertsToEdgeXEvent(t *testing.T) {
+	m := &protobuf.Payload_Metric{Timestamp: proto.Uint64(1), Value: &protobuf.Payload_Metric_StringValue{StringValue: `{"a":1}`}}
+	reading, err := newReading(objectDef, m, &protobuf.Payload{})
+	require.NoError(t, err)
+	assert.Equal(t, xrtmodels.Reading{Value: map[string]any{"a": 1.0}, Type: common.ValueTypeObject, Origin: 1_000_000}, reading)
+	event, err := xrtmodels.ToEdgeXV2EventDTO(xrtmodels.MultiResourcesResult{Device: "d", Readings: map[string]xrtmodels.Reading{"obj": reading}})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"a": 1.0}, event.Readings[0].ObjectValue)
+
+	textDef := objectDef
+	textDef.ContentType = ""
+	reading, err = newReading(textDef, m, &protobuf.Payload{})
+	require.NoError(t, err)
+	assert.Equal(t, `{"a":1}`, reading.Value, "a Text without the Object content type stays a string")
+	assert.Equal(t, common.ValueTypeString, reading.Type)
+}
+
+func TestBinaryReadingConvertsToEdgeXEvent(t *testing.T) {
+	def := models.MetricDef{Name: "bin", Datatype: uint32(protobuf.DataType_Bytes)}
+	m := &protobuf.Payload_Metric{Timestamp: proto.Uint64(1), Value: &protobuf.Payload_Metric_BytesValue{BytesValue: []byte{1, 2, 3}}}
+	reading, err := newReading(def, m, &protobuf.Payload{})
+	require.NoError(t, err)
+	assert.Equal(t, xrtmodels.Reading{Value: "AQID", Type: common.ValueTypeBinary, Origin: 1_000_000}, reading)
+	event, err := xrtmodels.ToEdgeXV2EventDTO(xrtmodels.MultiResourcesResult{Device: "d", Readings: map[string]xrtmodels.Reading{"bin": reading}})
+	require.NoError(t, err)
+	assert.Equal(t, []byte{1, 2, 3}, event.Readings[0].BinaryValue)
+}
+
+func TestInvalidValueKeepsTheParseMessage(t *testing.T) {
+	_, err := writeMetric(models.MetricDef{Name: "Voltage", Datatype: uint32(protobuf.DataType_UInt16)}, "abc")
+	assert.Equal(t, errors.KindContractInvalid, errors.Kind(err))
+	assert.EqualError(t, err, `invalid value abc for Voltage of type Uint16 -> strconv.ParseUint: parsing "abc": invalid syntax`)
+
+	_, err = writeMetric(models.MetricDef{Name: "Codes", Datatype: uint32(protobuf.DataType_Int8Array)}, "[1, 128]")
+	assert.Equal(t, errors.KindContractInvalid, errors.Kind(err))
+	assert.EqualError(t, err, `invalid value [1, 128] for Codes of type Int8Array -> element 1 -> strconv.ParseInt: parsing "128": value out of range`)
 }

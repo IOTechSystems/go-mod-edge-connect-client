@@ -20,7 +20,7 @@ type SparkplugClient interface {
 	Nodes() []models.NodeInfo
 
 	// ReadDeviceResources and WriteDeviceResources send one DCMD to an online device and wait for its DACK. Each
-	// resource is checked against the device DBIRTH first; a request fails as a whole if any resource fails.
+	// resource is checked against the device DBIRTH first; a request fails if any resource fails.
 	ReadDeviceResources(ctx context.Context, node models.NodeKey, device string,
 		resourceNames []string) (xrtmodels.MultiResourcesResult, errors.EdgeX)
 	WriteDeviceResources(ctx context.Context, node models.NodeKey, device string,

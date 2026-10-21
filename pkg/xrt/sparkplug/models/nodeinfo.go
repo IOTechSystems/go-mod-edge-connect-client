@@ -21,6 +21,7 @@ type NodeInfo struct {
 // Device is one device of a node, taken from its latest DBIRTH.
 type Device struct {
 	Name    string
+	Profile string // value of the Properties/Profile metric
 	Metrics []MetricDef
 }
 
@@ -30,4 +31,6 @@ type MetricDef struct {
 	Alias     uint64 // 0 if the metric has none (e.g. bdSeq)
 	Datatype  uint32 // Sparkplug DataType
 	ReadWrite string // readWrite property: "R", "W", "RW", or empty
+	// ContentType is the metadata content_type, e.g. "xrt/json-object" for an EdgeX Object resource
+	ContentType string
 }

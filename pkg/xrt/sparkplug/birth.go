@@ -73,10 +73,11 @@ func metricDefs(payload *protobuf.Payload) []models.MetricDef {
 	defs := make([]models.MetricDef, 0, len(payload.GetMetrics()))
 	for _, m := range payload.GetMetrics() {
 		defs = append(defs, models.MetricDef{
-			Name:      m.GetName(),
-			Alias:     m.GetAlias(),
-			Datatype:  m.GetDatatype(),
-			ReadWrite: property(m.GetProperties(), readWriteProperty).GetStringValue(),
+			Name:        m.GetName(),
+			Alias:       m.GetAlias(),
+			Datatype:    m.GetDatatype(),
+			ReadWrite:   property(m.GetProperties(), readWriteProperty).GetStringValue(),
+			ContentType: m.GetMetadata().GetContentType(),
 		})
 	}
 	return defs

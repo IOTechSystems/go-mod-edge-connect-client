@@ -3,6 +3,7 @@
 package sparkplug
 
 import (
+	"cmp"
 	"context"
 	goerrors "errors"
 	"fmt"
@@ -99,7 +100,7 @@ func TestReadDeviceResources(t *testing.T) {
 	}
 	// The DACK lists the resources in reverse order.
 	origin := int64(1792477039318) * int64(time.Millisecond)
-	assert.Equal(t, xrtmodels.MultiResourcesResult{Device: bacnetDevice, Readings: map[string]xrtmodels.Reading{
+	assert.Equal(t, xrtmodels.MultiResourcesResult{Device: bacnetDevice, Profile: "SimpleServer-5", Readings: map[string]xrtmodels.Reading{
 		"analog_value_0:present-value":  {Value: float64(162), Type: common.ValueTypeFloat32, Origin: origin},
 		"analog_value_1:present-value":  {Value: float64(61), Type: common.ValueTypeFloat32, Origin: origin},
 		"analog_output_1:present-value": {Value: 66.5, Type: common.ValueTypeFloat32, Origin: origin},
@@ -117,6 +118,7 @@ func TestReadingsConvertToEdgeXEvent(t *testing.T) {
 	event, err := xrtmodels.ToEdgeXV2EventDTO(result)
 	require.NoError(t, err)
 	require.Len(t, event.Readings, 1)
+	assert.Equal(t, "SimpleServer-5", event.ProfileName)
 	assert.Equal(t, common.ValueTypeFloat32, event.Readings[0].ValueType)
 	assert.Equal(t, "6.65e+01", event.Readings[0].Value)
 }
@@ -209,9 +211,9 @@ func TestDCMDRejectedBeforePublish(t *testing.T) {
 func TestUnsupportedDatatypeRejectedBeforePublish(t *testing.T) {
 	c := newTestClient(mocks.NewMessageClient(t))
 	c.nodes[bacnetNode] = models.NodeInfo{NodeKey: bacnetNode, Devices: []models.Device{{Name: bacnetDevice, Metrics: []models.MetricDef{
-		{Name: "status-flags", Alias: 1, Datatype: uint32(protobuf.DataType_UInt8Array), ReadWrite: "R"},
+		{Name: "table", Alias: 1, Datatype: uint32(protobuf.DataType_DataSet), ReadWrite: "R"},
 	}}}}
-	_, err := c.ReadDeviceResources(context.Background(), bacnetNode, bacnetDevice, []string{"status-flags"})
+	_, err := c.ReadDeviceResources(context.Background(), bacnetNode, bacnetDevice, []string{"table"})
 	assert.Equal(t, errors.KindNotImplemented, errors.Kind(err))
 }
 
@@ -231,6 +233,7 @@ func TestDCMDWithoutDACK(t *testing.T) {
 	t.Run("cancelled", func(t *testing.T) {
 		bus := mocks.NewMessageClient(t)
 		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		bus.On("PublishBinaryData", mock.Anything, bacnetDCMD).Run(func(mock.Arguments) { cancel() }).Return(nil).Once()
 		c := newBacnetClient(t, bus)
 		err := read(ctx, c)
@@ -276,6 +279,7 @@ func TestUnanswerableDCMDIsNotSent(t *testing.T) {
 	t.Run("cancelled", func(t *testing.T) {
 		c := newBacnetClient(t, mocks.NewMessageClient(t))
 		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		cancel()
 		err := write(ctx, c)
 		assert.Equal(t, errors.KindServiceUnavailable, errors.Kind(err))
@@ -294,10 +298,11 @@ func TestDACKDeliveredByRun(t *testing.T) {
 	c := newBacnetClient(t, bus)
 	c.done = make(chan struct{})
 	messages := make(chan types.MessageEnvelope, 1)
+	defer func() { <-c.done }() // deferred first, so it waits after cancel below stops run
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go c.run(ctx, messages, make(chan error))
 	bus.On("Unsubscribe").Return(nil).Once()
-	defer func() { cancel(); <-c.done }()
 
 	dack := fixturePayload(t, "dack_read_bacnet-sim-1.json")
 	bus.On("PublishBinaryData", mock.Anything, bacnetDCMD).Run(func(args mock.Arguments) {
@@ -399,54 +404,61 @@ func TestAckedMetricsFailures(t *testing.T) {
 		name    string
 		dack    *protobuf.Payload
 		defs    []models.MetricDef
-		log     string
 		message string
+		kind    errors.ErrKind // empty for KindServerError
+		write   bool
 	}{
-		{"write rejected as read-only", fixturePayload(t, "dack_write_readonly_bacnet-sim-1.json"),
-			bacnetDefs(t, "analog_value_1:event-state"), "analog_value_1:event-state (quality 0x80890000)",
-			"analog_value_1:event-state: The device or resource configuration does not allow this command"},
-		{"write with a mismatched datatype", fixturePayload(t, "dack_write_mismatch_bacnet-sim-1.json"),
-			present, "analog_value_0:present-value (no value)", "analog_value_0:present-value: Command execution failed"},
-		{"resource left out of the DACK", fixturePayload(t, "dack_read_bacnet-sim-1.json"),
-			bacnetDefs(t, "analog_value_0:present-value", "analog_value_1:event-state"), "analog_value_1:event-state (missing from the DACK)",
-			"analog_value_1:event-state: Command execution failed"},
-		{"stale alias", fixturePayload(t, "dack_read_bacnet-sim-1.json"),
-			[]models.MetricDef{staleDef}, "its alias belongs to analog_value_1:present-value",
-			"analog_value_0:present-value: Command execution failed"},
-		{"value not of the DBIRTH datatype", fixturePayload(t, "dack_read_bacnet-sim-1.json"),
-			[]models.MetricDef{textDef}, "analog_value_0:present-value (the value does not match the DBIRTH datatype Text)",
-			"analog_value_0:present-value: Command execution failed"},
-		{"Bad_DependentValueChanged on two resources", withQuality(t, 0x80E30000),
-			bacnetDefs(t, "analog_value_1:present-value", "analog_value_0:present-value"), "analog_value_0:present-value (quality 0x80E30000), analog_value_1:present-value (quality 0x80E30000)",
-			"analog_value_0:present-value: Not written because another value in the same command was invalid; " +
-				"analog_value_1:present-value: Not written because another value in the same command was invalid"},
-		{"Bad_NoCommunication", withQuality(t, 0x80310000), present, "(quality 0x80310000)",
-			"analog_value_0:present-value: Unable to communicate with the device"},
-		{"Bad quality with is_null", withNullValues(withQuality(t, 0x80310000)), present, "(quality 0x80310000)",
-			"analog_value_0:present-value: Unable to communicate with the device"},
-		{"Uncertain_LastUsableValue", withQuality(t, 0x40900000), present, "(quality 0x40900000)",
-			"analog_value_0:present-value: The device returned only its last usable value"},
-		{"Uncertain code devsdk does not set", withQuality(t, 0x40000000), present, "(quality 0x40000000)",
-			"analog_value_0:present-value: Command execution failed"},
+		{"write rejected as read-only", fixturePayload(t, "dack_write_readonly_bacnet-sim-1.json"), bacnetDefs(t, "analog_value_1:event-state"),
+			"analog_value_1:event-state: Write failed, the device or resource configuration does not allow this command (Bad_ConfigurationError, quality 0x80890000); see the XRT log for the cause", errors.KindNotAllowed, true},
+		{"Bad_OutOfRange", withQuality(t, 0x803C0000), present,
+			"analog_value_0:present-value: Read failed, the value is out of range (Bad_OutOfRange, quality 0x803C0000); see the XRT log for the cause", errors.KindContractInvalid, false},
+		{"Bad_TypeMismatch on two resources", withQuality(t, 0x80740000), bacnetDefs(t, "analog_value_0:present-value", "analog_value_1:present-value"),
+			"analog_value_0:present-value: Read failed, the value type does not match the resource (Bad_TypeMismatch, quality 0x80740000); see the XRT log for the cause; " +
+				"analog_value_1:present-value: Read failed, the value type does not match the resource (Bad_TypeMismatch, quality 0x80740000); see the XRT log for the cause", errors.KindContractInvalid, false},
+		{"Bad_OutOfRange with a resource left out", withQuality(t, 0x803C0000), bacnetDefs(t, "analog_value_0:present-value", "analog_value_1:event-state"),
+			"analog_value_0:present-value: Read failed, the value is out of range (Bad_OutOfRange, quality 0x803C0000); see the XRT log for the cause; " +
+				"analog_value_1:event-state: Read failed (missing from the DACK)", "", false},
+		{"read without a value", fixturePayload(t, "dack_write_mismatch_bacnet-sim-1.json"), present,
+			"analog_value_0:present-value: Read failed (no value of the DBIRTH datatype Float)", "", false},
+		{"resource left out of the DACK", fixturePayload(t, "dack_read_bacnet-sim-1.json"), bacnetDefs(t, "analog_value_0:present-value", "analog_value_1:event-state"),
+			"analog_value_1:event-state: Read failed (missing from the DACK)", "", false},
+		{"stale alias", fixturePayload(t, "dack_read_bacnet-sim-1.json"), []models.MetricDef{staleDef},
+			"analog_value_0:present-value: Read failed (its alias belongs to analog_value_1:present-value in the DACK; the DBIRTH may be stale)", "", false},
+		{"value not of the DBIRTH datatype", fixturePayload(t, "dack_read_bacnet-sim-1.json"), []models.MetricDef{textDef},
+			"analog_value_0:present-value: Read failed (no value of the DBIRTH datatype Text)", "", false},
+		{"Bad_DependentValueChanged on two resources", withQuality(t, 0x80E30000), bacnetDefs(t, "analog_value_1:present-value", "analog_value_0:present-value"),
+			"analog_value_1:present-value: Write failed, not written because another value in the same command was invalid (Bad_DependentValueChanged, quality 0x80E30000); see the XRT log for the cause; " +
+				"analog_value_0:present-value: Write failed, not written because another value in the same command was invalid (Bad_DependentValueChanged, quality 0x80E30000); see the XRT log for the cause", "", true},
+		{"Bad_NoCommunication", withQuality(t, 0x80310000), present,
+			"analog_value_0:present-value: Read failed, unable to communicate with the device (Bad_NoCommunication, quality 0x80310000); see the XRT log for the cause", "", false},
+		{"Bad quality with is_null", withNullValues(withQuality(t, 0x80310000)), present,
+			"analog_value_0:present-value: Read failed, unable to communicate with the device (Bad_NoCommunication, quality 0x80310000); see the XRT log for the cause", "", false},
+		{"Uncertain_LastUsableValue", withQuality(t, 0x40900000), present,
+			"analog_value_0:present-value: Read failed, the device returned only its last usable value (Uncertain_LastUsableValue, quality 0x40900000); see the XRT log for the cause", "", false},
 		// devsdk DEVSDK_QUALITY_BAD has no SubCode, so it has no specific message.
-		{"Bad severity only", withQuality(t, 0x80000000), present, "(quality 0x80000000)",
-			"analog_value_0:present-value: Command execution failed"},
-		{"Bad code devsdk does not set", withQuality(t, 0x803B0000), present, "(quality 0x803B0000)",
-			"analog_value_0:present-value: Command execution failed"},
+		{"Bad severity only", withQuality(t, 0x80000000), present,
+			"analog_value_0:present-value: Read failed (quality 0x80000000); see the XRT log for the cause", "", false},
+		{"quality code without a message", withQuality(t, 0x803B0000), present,
+			"analog_value_0:present-value: Read failed (quality 0x803B0000); see the XRT log for the cause", "", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c, lc := newRecordingClient(t)
-			acked, err := c.ackedMetrics(bacnetDCMD, tt.dack, tt.defs)
+			acked, err := c.ackedMetrics(bacnetDCMD, tt.dack, tt.defs, !tt.write)
 			require.Error(t, err)
 			assert.Nil(t, acked)
-			assert.Equal(t, errors.KindServerError, errors.Kind(err))
+			assert.Equal(t, cmp.Or(tt.kind, errors.KindServerError), errors.Kind(err))
 			assert.Equal(t, tt.message, err.Error(), "the UI shows this message as is")
-			require.Len(t, lc.lines, 1)
-			assert.Contains(t, lc.lines[0], "ERROR Sparkplug DCMD to "+bacnetDCMD+" failed: ")
-			assert.Contains(t, lc.lines[0], tt.log)
+			assert.Equal(t, []string{"ERROR Sparkplug DCMD to " + bacnetDCMD + " failed: " + tt.message}, lc.lines)
 		})
 	}
+}
+
+func TestMergeKind(t *testing.T) {
+	assert.Equal(t, errors.KindNotAllowed, mergeKind("", errors.KindNotAllowed))
+	assert.Equal(t, errors.KindNotAllowed, mergeKind(errors.KindNotAllowed, errors.KindNotAllowed))
+	assert.Equal(t, errors.KindServerError, mergeKind(errors.KindNotAllowed, errors.KindContractInvalid))
+	assert.Equal(t, errors.KindServerError, mergeKind(errors.KindServerError, errors.KindContractInvalid))
 }
 
 func withNullValues(dack *protobuf.Payload) *protobuf.Payload {
@@ -463,10 +475,10 @@ func TestAckedMetricsMatchesOnlyByAlias(t *testing.T) {
 		m.Alias = nil
 	}
 	c, lc := newRecordingClient(t)
-	_, err := c.ackedMetrics(bacnetDCMD, dack, bacnetDefs(t, "analog_output_1:present-value"))
+	_, err := c.ackedMetrics(bacnetDCMD, dack, bacnetDefs(t, "analog_output_1:present-value"), true)
 	require.Error(t, err)
 	require.Len(t, lc.lines, 1)
-	assert.Contains(t, lc.lines[0], "analog_output_1:present-value (missing from the DACK)")
+	assert.Contains(t, lc.lines[0], "analog_output_1:present-value: Read failed (missing from the DACK)")
 }
 
 func TestAckedMetricsAcceptsGoodQuality(t *testing.T) {
@@ -474,7 +486,7 @@ func TestAckedMetricsAcceptsGoodQuality(t *testing.T) {
 	// 0x002D0000 is Good_SubscriptionTransferred: Good with a SubCode.
 	for _, q := range []uint32{0, 0x002D0000} {
 		c, lc := newRecordingClient(t)
-		acked, err := c.ackedMetrics(bacnetDCMD, withQuality(t, q), present)
+		acked, err := c.ackedMetrics(bacnetDCMD, withQuality(t, q), present, true)
 		require.NoError(t, err, "quality 0x%08X", q)
 		assert.Equal(t, float32(11.5), acked["analog_value_0:present-value"].GetFloatValue())
 		assert.Empty(t, lc.lines)
@@ -501,21 +513,73 @@ func TestReadRejectsInexactInteger(t *testing.T) {
 	result, err := c.ReadDeviceResources(context.Background(), bacnetNode, bacnetDevice, []string{"count"})
 	require.Error(t, err)
 	assert.Empty(t, result.Readings)
-	assert.Equal(t, "count: The value is too large to be shown exactly", err.Error())
-	assert.Equal(t, []string{"ERROR Sparkplug DCMD to iotech/xrt-bacnet-v4/bacnet-sim-1: count UInt64 value 9007199254740993 is beyond 2^53, " +
-		"which a reading cannot hold exactly"}, lc.lines)
+	const want = "count: Read failed (UInt64 value 9007199254740993 is beyond 2^53)"
+	assert.Equal(t, want, err.Error())
+	assert.Equal(t, []string{"ERROR Sparkplug DCMD to " + bacnetDCMD + " failed: " + want}, lc.lines)
 }
 
-func TestDACKFailureReachesCallerAsGenericMessage(t *testing.T) {
+func TestDACKFailureReachesCaller(t *testing.T) {
 	bus := mocks.NewMessageClient(t)
 	c := newBacnetClient(t, bus)
-	replyWithDACK(t, c, bus, "dack_write_mismatch_bacnet-sim-1.json")
+	replyWithDACK(t, c, bus, "dack_read_bacnet-sim-1.json") // has no analog_value_1:event-state
 
-	err := c.WriteDeviceResources(context.Background(), bacnetNode, bacnetDevice, map[string]any{"analog_value_0:present-value": 1.5}, nil)
+	_, err := c.ReadDeviceResources(context.Background(), bacnetNode, bacnetDevice, []string{"analog_value_1:event-state"})
 	require.Error(t, err)
 	assert.Equal(t, errors.KindServerError, errors.Kind(err))
-	assert.Equal(t, "analog_value_0:present-value: Command execution failed", err.Error())
+	assert.Equal(t, "analog_value_1:event-state: Read failed (missing from the DACK)", err.Error())
 	var edgexErr errors.CommonEdgeX
 	require.True(t, goerrors.As(err, &edgexErr))
-	assert.Equal(t, "analog_value_0:present-value: Command execution failed", edgexErr.Message())
+	assert.Equal(t, "analog_value_1:event-state: Read failed (missing from the DACK)", edgexErr.Message())
+}
+
+func TestMetricDefsContentType(t *testing.T) {
+	defs := metricDefs(&protobuf.Payload{Metrics: []*protobuf.Payload_Metric{
+		{Name: proto.String("obj"), Metadata: &protobuf.Payload_MetaData{ContentType: proto.String("xrt/json-object")}},
+		{Name: proto.String("text")},
+	}})
+	assert.Equal(t, "xrt/json-object", defs[0].ContentType)
+	assert.Empty(t, defs[1].ContentType)
+}
+
+func TestBinaryIsReadOnly(t *testing.T) {
+	defs := []models.MetricDef{{Name: "bin", Alias: 1, Datatype: uint32(protobuf.DataType_Bytes), ReadWrite: "RW"}}
+	_, err := resourceMetricDef(defs, "dev", "bin", common.ReadWrite_R)
+	require.NoError(t, err)
+	_, err = resourceMetricDef(defs, "dev", "bin", common.ReadWrite_W)
+	assert.Equal(t, errors.KindNotImplemented, errors.Kind(err))
+}
+
+func TestObjectAckWithoutJSON(t *testing.T) {
+	m := &protobuf.Payload_Metric{Name: proto.String("obj"), Alias: proto.Uint64(1), Value: &protobuf.Payload_Metric_StringValue{StringValue: "abc"}}
+	assert.EqualError(t, validateResourceAck(objectDef, m, true), "obj: Read failed (the value of an Object is not JSON)")
+	m.Value = &protobuf.Payload_Metric_StringValue{StringValue: `{"a":1}`}
+	assert.NoError(t, validateResourceAck(objectDef, m, true))
+}
+
+// dack_write_mismatch is the DACK of a String written to a Float (see validateResourceAck).
+func TestWriteAckJudgedByQualityOnly(t *testing.T) {
+	present := bacnetDefs(t, "analog_value_0:present-value")
+	c, lc := newRecordingClient(t)
+	_, err := c.ackedMetrics(bacnetDCMD, fixturePayload(t, "dack_write_mismatch_bacnet-sim-1.json"), present, false)
+	assert.NoError(t, err)
+	assert.Empty(t, lc.lines)
+
+	_, err = c.ackedMetrics(bacnetDCMD, withQuality(t, 0x803C0000), present, false)
+	assert.Equal(t, errors.KindContractInvalid, errors.Kind(err))
+	_, err = c.ackedMetrics(bacnetDCMD, fixturePayload(t, "dack_read_bacnet-sim-1.json"), bacnetDefs(t, "analog_value_1:event-state"), false)
+	assert.Equal(t, errors.KindServerError, errors.Kind(err), "a resource left out of the DACK still fails a write")
+}
+
+func TestNullObject(t *testing.T) {
+	m := &protobuf.Payload_Metric{Name: proto.String("obj"), Alias: proto.Uint64(1), Datatype: proto.Uint32(14), IsNull: proto.Bool(true)}
+	assert.NoError(t, validateResourceAck(objectDef, m, true))
+	m.IsNull = nil
+	assert.NoError(t, validateResourceAck(objectDef, m, true), "a null Object is known by its missing value, not by is_null")
+	reading, err := newReading(objectDef, m, &protobuf.Payload{Timestamp: proto.Uint64(1)})
+	require.NoError(t, err)
+	assert.Equal(t, xrtmodels.Reading{Value: nil, Type: common.ValueTypeObject, Origin: 1_000_000}, reading)
+
+	textDef := objectDef
+	textDef.ContentType = ""
+	assert.EqualError(t, validateResourceAck(textDef, m, true), "obj: Read failed (no value of the DBIRTH datatype Text)", "only an Object reads null")
 }

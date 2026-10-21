@@ -181,7 +181,11 @@ func (c *Client) applyOrMarkRebirth(key models.NodeKey, msgType, device string, 
 		c.applyNDEATH(info, p)
 	case msgTypeDBIRTH:
 		known := hasDevice(info.Devices, device)
-		info.Devices = replaceDevice(info.Devices, models.Device{Name: device, Metrics: metricDefs(p)})
+		info.Devices = replaceDevice(info.Devices, models.Device{
+			Name:    device,
+			Profile: findMetric(p, profileMetricName).GetStringValue(),
+			Metrics: metricDefs(p),
+		})
 		c.nodes[key] = info
 		if !known {
 			c.lc.Debugf("Sparkplug device %s added to %s/%s; the node now has %d devices", device, key.Group, key.Node, len(info.Devices))

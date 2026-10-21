@@ -35,6 +35,24 @@
       "isNull": true
     },
     {
+      "name": "Properties/Profile",
+      "alias": "6122072095",
+      "timestamp": "1792464513085",
+      "datatype": 12,
+      "properties": {
+        "keys": [
+          "readWrite"
+        ],
+        "values": [
+          {
+            "type": 12,
+            "stringValue": "R"
+          }
+        ]
+      },
+      "stringValue": "SimpleServer-5"
+    },
+    {
       "name": "analog_value_1:event-state",
       "alias": "6085751686",
       "timestamp": "1792475469605",
