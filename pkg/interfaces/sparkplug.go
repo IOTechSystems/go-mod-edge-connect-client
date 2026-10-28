@@ -19,13 +19,14 @@ type SparkplugClient interface {
 	// Nodes return the online nodes sorted by group, then node.
 	Nodes() []models.NodeInfo
 
-	// ReadDeviceResources and WriteDeviceResources are reserved for DCMD/DACK and return KindNotImplemented for now.
+	// ReadDeviceResources and WriteDeviceResources send one DCMD to an online device and wait for its DACK. Each
+	// resource is checked against the device DBIRTH first; a request fails if any resource fails.
 	ReadDeviceResources(ctx context.Context, node models.NodeKey, device string,
 		resourceNames []string) (xrtmodels.MultiResourcesResult, errors.EdgeX)
 	WriteDeviceResources(ctx context.Context, node models.NodeKey, device string,
 		resourceValuePairs, options map[string]any) errors.EdgeX
 
-	// SetRequestTimeout sets how long a DCMD waits for its DACK; unused until DCMD is implemented.
+	// SetRequestTimeout sets how long a DCMD waits for its DACK; a non-positive value fails every request.
 	SetRequestTimeout(requestTimeout time.Duration)
 	// Close stops message handling and unsubscribes. The message bus stays connected because it is shared; call Close
 	// before disconnecting it.

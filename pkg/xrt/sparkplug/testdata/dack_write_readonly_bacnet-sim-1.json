@@ -1,0 +1,27 @@
+{
+  "timestamp": "1792477041753",
+  "metrics": [
+    {
+      "name": "Device Control/CommandId",
+      "alias": "7697640736",
+      "timestamp": "1792477041753",
+      "stringValue": "a93b2ba8-1581-478c-a95b-3feda5a67c5d"
+    },
+    {
+      "name": "analog_value_1:event-state",
+      "alias": "6085751686",
+      "timestamp": "1792477041753",
+      "properties": {
+        "keys": [
+          "quality"
+        ],
+        "values": [
+          {
+            "intValue": 2156462080
+          }
+        ]
+      },
+      "intValue": 3
+    }
+  ]
+}

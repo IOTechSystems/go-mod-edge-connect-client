@@ -12,7 +12,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/IOTechSystems/go-mod-central-ext/v4/pkg/xrtmodels"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/clients/logger"
 	"github.com/edgexfoundry/go-mod-core-contracts/v4/errors"
@@ -44,14 +43,20 @@ type Client struct {
 	nodesMu sync.RWMutex
 	nodes   map[models.NodeKey]models.NodeInfo
 	reborn  map[models.NodeKey]struct{} // unknown nodes already sent a rebirth; cleared by their NBIRTH
+
+	dackWaitersMu sync.Mutex
+	dackWaiters   map[string]chan *protobuf.Payload // DCMD CommandId -> where its DACK is delivered
 }
 
 // NewClient subscribes to NBIRTH/NDEATH/DBIRTH/DDEATH/DACK of the groups; it does not publish a rebirth.
-// requestTimeout is the initial value of SetRequestTimeout.
+// requestTimeout is the initial value of SetRequestTimeout and must be positive.
 func NewClient(ctx context.Context, messageBus messaging.MessageClient, groups []string,
 	requestTimeout time.Duration, lc logger.LoggingClient) (interfaces.SparkplugClient, errors.EdgeX) {
 	if len(groups) == 0 {
 		return nil, errors.NewCommonEdgeX(errors.KindContractInvalid, "at least one Sparkplug group is required", nil)
+	}
+	if requestTimeout <= 0 {
+		return nil, errors.NewCommonEdgeX(errors.KindContractInvalid, fmt.Sprintf("the request timeout %v is not positive", requestTimeout), nil)
 	}
 
 	// One slot for the message paho may still deliver after Unsubscribe returns: its router calls a matched handler
@@ -61,15 +66,16 @@ func NewClient(ctx context.Context, messageBus messaging.MessageClient, groups [
 	topics := subscribeTopics(groups)
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	c := &Client{
-		lc:         lc,
-		messageBus: messageBus,
-		groups:     slices.Clone(groups),
-		topics:     topics,
-		cancel:     cancel,
-		done:       make(chan struct{}),
-		unsubRetry: defaultUnsubscribeRetry,
-		nodes:      make(map[models.NodeKey]models.NodeInfo),
-		reborn:     make(map[models.NodeKey]struct{}),
+		lc:          lc,
+		messageBus:  messageBus,
+		groups:      slices.Clone(groups),
+		topics:      topics,
+		cancel:      cancel,
+		done:        make(chan struct{}),
+		unsubRetry:  defaultUnsubscribeRetry,
+		nodes:       make(map[models.NodeKey]models.NodeInfo),
+		reborn:      make(map[models.NodeKey]struct{}),
+		dackWaiters: make(map[string]chan *protobuf.Payload),
 	}
 	c.requestTimeout.Store(int64(requestTimeout))
 	// Started before subscribing: topics subscribed early deliver while the remaining ones are still pending.
@@ -126,7 +132,7 @@ func (c *Client) run(ctx context.Context, messages <-chan types.MessageEnvelope,
 func (c *Client) handle(msg types.MessageEnvelope) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			c.lc.Errorf("panic while handling Sparkplug message on %s: %v", msg.ReceivedTopic, recovered)
+			c.lc.Errorf("Panic while handling Sparkplug message on %s: %v", msg.ReceivedTopic, recovered)
 		}
 	}()
 	data, ok := msg.Payload.([]byte)
@@ -136,18 +142,17 @@ func (c *Client) handle(msg types.MessageEnvelope) {
 	}
 	group, msgType, node, device, err := parseTopic(msg.ReceivedTopic)
 	if err != nil {
-		c.lc.Warnf("skip Sparkplug message: %v", err)
-		return
-	}
-	// DACKs answer DCMDs, which are not implemented yet; they must not reach apply, where a DACK from a node not
-	// yet known would trigger a rebirth.
-	if msgType == msgTypeDACK {
-		c.lc.Debugf("ignore Sparkplug DACK on %s", msg.ReceivedTopic)
+		c.lc.Warnf("Skip Sparkplug message: %v", err)
 		return
 	}
 	var p protobuf.Payload
 	if err := proto.Unmarshal(data, &p); err != nil {
-		c.lc.Warnf("failed to decode Sparkplug payload on %s: %v", msg.ReceivedTopic, err)
+		c.lc.Warnf("Failed to decode Sparkplug payload on %s: %v", msg.ReceivedTopic, err)
+		return
+	}
+	// A DACK must not reach apply, where a DACK from a node not yet known would trigger a rebirth.
+	if msgType == msgTypeDACK {
+		c.deliverDACK(msg.ReceivedTopic, &p)
 		return
 	}
 
@@ -176,7 +181,11 @@ func (c *Client) applyOrMarkRebirth(key models.NodeKey, msgType, device string, 
 		c.applyNDEATH(info, p)
 	case msgTypeDBIRTH:
 		known := hasDevice(info.Devices, device)
-		info.Devices = replaceDevice(info.Devices, models.Device{Name: device, Metrics: metricDefs(p)})
+		info.Devices = replaceDevice(info.Devices, models.Device{
+			Name:    device,
+			Profile: findMetric(p, profileMetricName).GetStringValue(),
+			Metrics: metricDefs(p),
+		})
 		c.nodes[key] = info
 		if !known {
 			c.lc.Debugf("Sparkplug device %s added to %s/%s; the node now has %d devices", device, key.Group, key.Node, len(info.Devices))
@@ -199,7 +208,7 @@ func (c *Client) applyNBIRTH(key models.NodeKey, p *protobuf.Payload) {
 	}
 	services, invalid := deviceServices(p)
 	for _, name := range invalid {
-		c.lc.Warnf("skip unparsable metric %s of %s/%s", name, key.Group, key.Node)
+		c.lc.Warnf("Skip unparsable metric %s of %s/%s", name, key.Group, key.Node)
 	}
 	if len(services) == 0 {
 		c.lc.Warnf("Sparkplug node %s/%s lists no device service; is XRT EnableServices on?", key.Group, key.Node)
@@ -215,7 +224,7 @@ func (c *Client) applyNBIRTH(key models.NodeKey, p *protobuf.Payload) {
 func (c *Client) applyNDEATH(info models.NodeInfo, p *protobuf.Payload) {
 	seq, ok := bdSeq(p)
 	if !ok || !isSameOrNewerBdSeq(info.BdSeq, seq) {
-		c.lc.Debugf("ignore stale Sparkplug NDEATH of %s/%s", info.Group, info.Node)
+		c.lc.Debugf("Ignore stale Sparkplug NDEATH of %s/%s", info.Group, info.Node)
 		return
 	}
 	delete(c.nodes, info.NodeKey)
@@ -292,15 +301,6 @@ func (c *Client) publishRebirth(topic string) errors.EdgeX {
 	return nil
 }
 
-func (c *Client) ReadDeviceResources(_ context.Context, _ models.NodeKey, _ string,
-	_ []string) (xrtmodels.MultiResourcesResult, errors.EdgeX) {
-	return xrtmodels.MultiResourcesResult{}, errors.NewCommonEdgeX(errors.KindNotImplemented, "DCMD read is not implemented yet", nil)
-}
-
-func (c *Client) WriteDeviceResources(_ context.Context, _ models.NodeKey, _ string, _, _ map[string]any) errors.EdgeX {
-	return errors.NewCommonEdgeX(errors.KindNotImplemented, "DCMD write is not implemented yet", nil)
-}
-
 func (c *Client) SetRequestTimeout(requestTimeout time.Duration) {
 	c.requestTimeout.Store(int64(requestTimeout))
 }
@@ -316,7 +316,7 @@ func (c *Client) closeOnDone(callerCtx context.Context) {
 
 func (c *Client) closeAndLog() {
 	if err := c.Close(); err != nil {
-		c.lc.Errorf("failed to close the Sparkplug client: %v", err)
+		c.lc.Errorf("Failed to close the Sparkplug client: %v", err)
 	}
 }
 
@@ -386,7 +386,7 @@ func (c *Client) retryUnsubscribe(messages <-chan types.MessageEnvelope, message
 				return
 			}
 			if busDisconnected(err) {
-				c.lc.Warnf("stop retrying the Sparkplug unsubscribe because the message bus is disconnected: %v", err)
+				c.lc.Warnf("Stop retrying the Sparkplug unsubscribe because the message bus is disconnected: %v", err)
 				return
 			}
 		}
