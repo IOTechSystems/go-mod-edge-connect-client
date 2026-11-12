@@ -3,6 +3,7 @@
 package sparkplug
 
 import (
+	"encoding/json"
 	"math"
 	"testing"
 	"time"
@@ -44,6 +45,10 @@ func TestSetValue(t *testing.T) {
 		{protobuf.DataType_UInt32, uint64(math.MaxUint32 + 1), nil},
 		{protobuf.DataType_UInt64, "18446744073709551615", uint64(math.MaxUint64)},
 		{protobuf.DataType_UInt64, "18446744073709551616", nil},
+		// A json.Number, as a JSON body decoded with UseNumber gives it, stays exact beyond 2^53.
+		{protobuf.DataType_Int64, json.Number("9007199254740993"), uint64(9007199254740993)},
+		{protobuf.DataType_UInt64, json.Number("18446744073709551615"), uint64(math.MaxUint64)},
+		{protobuf.DataType_Double, json.Number("0.25"), 0.25},
 		{protobuf.DataType_Float, "3.4e38", float32(3.4e38)},
 		{protobuf.DataType_Float, "3.5e38", nil},
 		{protobuf.DataType_Float, 1, float32(1)},
@@ -105,12 +110,12 @@ func TestReadingValue(t *testing.T) {
 		{"Int8 not sign-extended", protobuf.DataType_Int8, intValue(0x80), float64(-128)},
 		{"Int16", protobuf.DataType_Int16, intValue(0xFFFF8000), float64(-32768)},
 		{"Int32", protobuf.DataType_Int32, intValue(0x80000000), float64(math.MinInt32)},
-		{"Int64", protobuf.DataType_Int64, longValue(math.MaxUint64), float64(-1)},
+		{"Int64", protobuf.DataType_Int64, longValue(math.MaxUint64), int64(-1)},
 		{"UInt8", protobuf.DataType_UInt8, intValue(255), float64(255)},
 		{"UInt8 beyond its width", protobuf.DataType_UInt8, intValue(0x1FF), float64(255)},
 		{"UInt16 beyond its width", protobuf.DataType_UInt16, intValue(0x1FFFF), float64(65535)},
 		{"UInt32", protobuf.DataType_UInt32, intValue(math.MaxUint32), float64(math.MaxUint32)},
-		{"UInt64", protobuf.DataType_UInt64, longValue(1 << 63), float64(1 << 63)},
+		{"UInt64", protobuf.DataType_UInt64, longValue(1 << 63), uint64(1 << 63)},
 		{"Float", protobuf.DataType_Float, &protobuf.Payload_Metric{Value: &protobuf.Payload_Metric_FloatValue{FloatValue: 0.5}}, 0.5},
 		{"Double", protobuf.DataType_Double, &protobuf.Payload_Metric{Value: &protobuf.Payload_Metric_DoubleValue{DoubleValue: 0.25}}, 0.25},
 		{"Boolean", protobuf.DataType_Boolean, &protobuf.Payload_Metric{Value: &protobuf.Payload_Metric_BooleanValue{BooleanValue: true}}, true},
@@ -152,30 +157,25 @@ func TestNewReadingOrigin(t *testing.T) {
 	assert.GreaterOrEqual(t, reading.Origin, before-int64(time.Millisecond), "without any timestamp, the origin is now")
 }
 
-func TestNewReadingInexactInteger(t *testing.T) {
+// Every 64-bit integer reads exactly, including those float64 cannot hold.
+func TestNewReadingExactInteger(t *testing.T) {
 	tests := []struct {
 		dt    protobuf.DataType
 		value uint64
-		err   string // empty if the value converts exactly
+		want  any
 	}{
-		{protobuf.DataType_Int64, 1 << 53, ""},
-		{protobuf.DataType_Int64, 1<<53 + 1, "Int64 value 9007199254740993 is beyond ±2^53"},
-		{protobuf.DataType_Int64, uint64(-(1 << 53) & math.MaxUint64), ""},
-		{protobuf.DataType_Int64, uint64((-(1 << 53) - 1) & math.MaxUint64), "Int64 value -9007199254740993 is beyond ±2^53"},
-		{protobuf.DataType_Int64, math.MaxInt64, "Int64 value 9223372036854775807 is beyond ±2^53"},
-		{protobuf.DataType_UInt64, 1 << 53, ""},
-		{protobuf.DataType_UInt64, 1<<53 + 1, "UInt64 value 9007199254740993 is beyond 2^53"},
-		{protobuf.DataType_UInt64, math.MaxUint64, "UInt64 value 18446744073709551615 is beyond 2^53"},
+		{protobuf.DataType_Int64, 1<<53 + 1, int64(1<<53 + 1)},
+		{protobuf.DataType_Int64, uint64(math.MaxInt64), int64(math.MaxInt64)},
+		{protobuf.DataType_Int64, 1 << 63, int64(math.MinInt64)},
+		{protobuf.DataType_UInt64, 1<<53 + 1, uint64(1<<53 + 1)},
+		{protobuf.DataType_UInt64, math.MaxUint64, uint64(math.MaxUint64)},
 	}
 	for _, tt := range tests {
 		def := models.MetricDef{Name: "r", Datatype: uint32(tt.dt)}
 		m := &protobuf.Payload_Metric{Value: &protobuf.Payload_Metric_LongValue{LongValue: tt.value}}
-		_, err := newReading(def, m, &protobuf.Payload{})
-		if tt.err == "" {
-			assert.NoError(t, err, "%s %d", tt.dt, tt.value)
-			continue
-		}
-		assert.EqualError(t, err, tt.err, "%s %d", tt.dt, tt.value)
+		reading, err := newReading(def, m, &protobuf.Payload{})
+		require.NoError(t, err, "%s %d", tt.dt, tt.value)
+		assert.Equal(t, tt.want, reading.Value, "%s %d", tt.dt, tt.value)
 	}
 }
 

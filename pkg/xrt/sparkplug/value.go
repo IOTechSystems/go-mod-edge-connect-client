@@ -5,7 +5,6 @@ package sparkplug
 import (
 	"cmp"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -142,16 +141,10 @@ func toBool(value any) (bool, errors.EdgeX) {
 	return false, errors.NewCommonEdgeX(errors.KindContractInvalid, fmt.Sprintf("value %#v is not a bool", value), nil)
 }
 
-// maxExactInt is the largest integer magnitude a float64 holds exactly.
-const maxExactInt = 1 << 53
-
-// newReading converts a DACK metric that ackedMetrics accepted. Numbers become float64, as if decoded from the JSON of
-// the XRT management API, so the xrtmodels conversions accept them; it fails for an integer float64 would change.
+// newReading converts a DACK metric that ackedMetrics accepted. Its value is as the XRT management API's JSON decodes
+// into an xrtmodels.Reading (see numberElem), so the xrtmodels conversions accept it.
 func newReading(def models.MetricDef, m *protobuf.Payload_Metric, dack *protobuf.Payload) (xrtmodels.Reading, errors.EdgeX) {
 	dt := protobuf.DataType(def.Datatype)
-	if err := checkExactAsFloat(dt, m); err != nil {
-		return xrtmodels.Reading{}, err
-	}
 	value, _ := readingValue(dt, m)
 	if isObject(def) {
 		value = nil
@@ -189,44 +182,6 @@ func objectJSON(value any) (string, errors.EdgeX) {
 		return "", errors.NewCommonEdgeX(errors.KindContractInvalid, "", err)
 	}
 	return string(b), nil
-}
-
-func checkExactAsFloat(dt protobuf.DataType, m *protobuf.Payload_Metric) errors.EdgeX {
-	switch dt {
-	case protobuf.DataType_Int64:
-		return checkExactInt64(int64(m.GetLongValue()))
-	case protobuf.DataType_UInt64:
-		return checkExactUint64(m.GetLongValue())
-	case protobuf.DataType_Int64Array, protobuf.DataType_UInt64Array:
-		b := m.GetBytesValue()
-		for i := 0; i+8 <= len(b); i += 8 {
-			u := binary.LittleEndian.Uint64(b[i:])
-			var err errors.EdgeX
-			if dt == protobuf.DataType_Int64Array {
-				err = checkExactInt64(int64(u))
-			} else {
-				err = checkExactUint64(u)
-			}
-			if err != nil {
-				return errors.NewCommonEdgeX(errors.Kind(err), fmt.Sprintf("element %d", i/8), err)
-			}
-		}
-	}
-	return nil
-}
-
-func checkExactInt64(v int64) errors.EdgeX {
-	if v < -maxExactInt || v > maxExactInt {
-		return errors.NewCommonEdgeX(errors.KindOverflowError, fmt.Sprintf("Int64 value %d is beyond ±2^53", v), nil)
-	}
-	return nil
-}
-
-func checkExactUint64(v uint64) errors.EdgeX {
-	if v > maxExactInt {
-		return errors.NewCommonEdgeX(errors.KindOverflowError, fmt.Sprintf("UInt64 value %d is beyond 2^53", v), nil)
-	}
-	return nil
 }
 
 // readingValue takes the value by the DBIRTH datatype, since a DACK metric has none.

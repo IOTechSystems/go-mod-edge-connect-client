@@ -3,6 +3,7 @@
 package sparkplug
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/IOTechSystems/go-mod-central-ext/v4/pkg/xrtmodels"
@@ -28,13 +29,13 @@ var arrayExamples = []struct {
 	{protobuf.DataType_Int32Array, "[-1, 315338746]", []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFA, 0xAF, 0xCB, 0x12}, []any{-1.0, 315338746.0}},
 	{protobuf.DataType_Int64Array, "[-4270929666821191986, -3601064768563266876]",
 		[]byte{0xCE, 0x06, 0x72, 0xAC, 0x18, 0x9C, 0xBA, 0xC4, 0xC4, 0xBA, 0x9C, 0x18, 0xAC, 0x72, 0x06, 0xCE},
-		[]any{-4270929666821191986.0, -3601064768563266876.0}},
+		[]any{int64(-4270929666821191986), int64(-3601064768563266876)}},
 	{protobuf.DataType_UInt8Array, "[23, 250]", []byte{0x17, 0xFA}, []any{23.0, 250.0}},
 	{protobuf.DataType_UInt16Array, "[30, 52360]", []byte{0x1E, 0x00, 0x88, 0xCC}, []any{30.0, 52360.0}},
 	{protobuf.DataType_UInt32Array, "[52, 3293969225]", []byte{0x34, 0x00, 0x00, 0x00, 0x49, 0xFB, 0x55, 0xC4}, []any{52.0, 3293969225.0}},
 	{protobuf.DataType_UInt64Array, "[52, 16444743074749521625]",
 		[]byte{0x34, 0, 0, 0, 0, 0, 0, 0, 0xD9, 0x9E, 0x02, 0xD1, 0xB2, 0x76, 0x37, 0xE4},
-		[]any{52.0, 16444743074749521625.0}},
+		[]any{uint64(52), uint64(16444743074749521625)}},
 	{protobuf.DataType_FloatArray, "[1.5, -2.25]", []byte{0x00, 0x00, 0xC0, 0x3F, 0x00, 0x00, 0x10, 0xC0}, []any{1.5, -2.25}},
 	{protobuf.DataType_DoubleArray, "[1.5]", []byte{0, 0, 0, 0, 0, 0, 0xF8, 0x3F}, []any{1.5}},
 	{protobuf.DataType_BooleanArray, "[false, false, true, true, false, true, false, false, true, true, false, true]",
@@ -156,18 +157,27 @@ func TestArrayReadingConvertsToEdgeXEvent(t *testing.T) {
 	}
 }
 
-func TestInexactInt64ArrayElement(t *testing.T) {
-	def := models.MetricDef{Name: "r", Datatype: uint32(protobuf.DataType_UInt64Array)}
-	b, err := encodeArray(protobuf.DataType_UInt64Array, "[9007199254740992, 9007199254740993]")
-	require.NoError(t, err)
-	m := &protobuf.Payload_Metric{Value: &protobuf.Payload_Metric_BytesValue{BytesValue: b}}
-	_, err = newReading(def, m, &protobuf.Payload{})
-	assert.EqualError(t, err, "element 1 -> UInt64 value 9007199254740993 is beyond 2^53")
+// A 64-bit array reaches the EdgeX event exactly, element by element.
+func TestExactInt64ArrayReadingConvertsToEdgeXEvent(t *testing.T) {
+	for _, tt := range []struct {
+		dt        protobuf.DataType
+		json      string
+		valueType string
+	}{
+		{protobuf.DataType_UInt64Array, "[9007199254740993, 18446744073709551615]", common.ValueTypeUint64Array},
+		{protobuf.DataType_Int64Array, "[-9007199254740993, 9223372036854775807]", common.ValueTypeInt64Array},
+	} {
+		b, err := encodeArray(tt.dt, tt.json)
+		require.NoError(t, err)
+		def := models.MetricDef{Name: "r", Datatype: uint32(tt.dt)}
+		m := &protobuf.Payload_Metric{Value: &protobuf.Payload_Metric_BytesValue{BytesValue: b}}
+		reading, err := newReading(def, m, &protobuf.Payload{})
+		require.NoError(t, err)
 
-	def.Datatype = uint32(protobuf.DataType_Int64Array)
-	b, err = encodeArray(protobuf.DataType_Int64Array, "[-9007199254740992, -9007199254740993]")
-	require.NoError(t, err)
-	m.Value = &protobuf.Payload_Metric_BytesValue{BytesValue: b}
-	_, err = newReading(def, m, &protobuf.Payload{})
-	assert.EqualError(t, err, "element 1 -> Int64 value -9007199254740993 is beyond ±2^53")
+		event, err := xrtmodels.ToEdgeXV2EventDTO(xrtmodels.MultiResourcesResult{Device: "d", Readings: map[string]xrtmodels.Reading{"r": reading}})
+
+		require.NoError(t, err)
+		assert.Equal(t, tt.valueType, event.Readings[0].ValueType)
+		assert.Equal(t, strings.ReplaceAll(tt.json, " ", ""), strings.ReplaceAll(event.Readings[0].Value, " ", ""))
+	}
 }

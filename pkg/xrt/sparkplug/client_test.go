@@ -133,6 +133,11 @@ func TestBirth(t *testing.T) {
 	assert.Equal(t, modbusNode, node.NodeKey)
 	assert.Equal(t, int64(38), node.BdSeq)
 	assert.Equal(t, []string{"bacnet_ip", "modbus"}, node.Services)
+	assert.ElementsMatch(t, []models.Component{
+		{Name: "11-logger_debug", Category: "IOT::Core", Type: "IOT::Logger", State: "Running"},
+		{Name: "10-bacnet_ip", Category: "XRT::DeviceService", Type: "XRT::BACnetIPDeviceService", State: "Running"},
+		{Name: "10-modbus", Category: "XRT::DeviceService", Type: "XRT::ModbusDeviceService", State: "Running"},
+	}, node.Components)
 	assert.Contains(t, node.Metrics, models.MetricDef{Name: "bdSeq", Datatype: uint32(protobuf.DataType_Int64)})
 
 	require.Len(t, node.Devices, 1)
@@ -385,12 +390,21 @@ func TestDeviceServicesSkipsUnparsableMetric(t *testing.T) {
 		{Name: strPtr("Service/1-xrt"), Value: &protobuf.Payload_Metric_StringValue{StringValue: bad}},
 		{Name: strPtr("Service/10-modbus"), Value: &protobuf.Payload_Metric_StringValue{StringValue: good}},
 	}}
-	names, invalid := deviceServices(p)
+	comps, names, invalid := components(p)
+	assert.Len(t, comps, 1)
 	assert.Equal(t, []string{"modbus"}, names)
 	assert.Equal(t, []string{"Service/1-xrt"}, invalid)
 }
 
 func strPtr(s string) *string { return &s }
+
+func componentNames(comps []models.Component) []string {
+	names := make([]string, 0, len(comps))
+	for _, c := range comps {
+		names = append(names, c.Name)
+	}
+	return names
+}
 
 func TestFailedRebirthIsRetried(t *testing.T) {
 	bus := mocks.NewMessageClient(t)
@@ -596,6 +610,7 @@ func TestNBIRTHReplacesServicesAndMetrics(t *testing.T) {
 
 	node := onlyNode(t, c)
 	assert.Equal(t, []string{"bacnet_ip"}, node.Services)
+	assert.Equal(t, []string{"10-bacnet_ip"}, componentNames(node.Components), "the components are replaced too")
 	assert.Equal(t, int64(18), node.BdSeq)
 	assert.Len(t, node.Metrics, 3)
 }

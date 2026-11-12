@@ -206,7 +206,7 @@ func (c *Client) applyNBIRTH(key models.NodeKey, p *protobuf.Payload) {
 	if !ok {
 		c.lc.Warnf("Sparkplug NBIRTH of %s/%s has no bdSeq", key.Group, key.Node)
 	}
-	services, invalid := deviceServices(p)
+	comps, services, invalid := components(p)
 	for _, name := range invalid {
 		c.lc.Warnf("Skip unparsable metric %s of %s/%s", name, key.Group, key.Node)
 	}
@@ -214,7 +214,7 @@ func (c *Client) applyNBIRTH(key models.NodeKey, p *protobuf.Payload) {
 		c.lc.Warnf("Sparkplug node %s/%s lists no device service; is XRT EnableServices on?", key.Group, key.Node)
 	}
 	_, known := c.nodes[key]
-	c.nodes[key] = models.NodeInfo{NodeKey: key, BdSeq: seq, Services: services, Metrics: metricDefs(p)}
+	c.nodes[key] = models.NodeInfo{NodeKey: key, BdSeq: seq, Services: services, Components: comps, Metrics: metricDefs(p)}
 	delete(c.reborn, key)
 	if !known {
 		c.lc.Infof("Sparkplug node %s/%s added with device services %v; %d nodes are now online", key.Group, key.Node, services, len(c.nodes))
