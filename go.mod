@@ -3,23 +3,23 @@ module github.com/IOTechSystems/go-mod-edge-connect-client/v4
 go 1.27
 
 require (
-	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.117
+	github.com/IOTechSystems/go-mod-central-ext/v4 v4.0.120
 	github.com/eclipse/paho.mqtt.golang v1.5.1
-	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.1.0-dev.52
+	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.1.0-dev.54
 	github.com/edgexfoundry/go-mod-messaging/v4 v4.0.0-dev.21
+	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.12.1
 	google.golang.org/protobuf v1.36.12
 )
 
 require (
-	github.com/fxamacker/cbor/v2 v2.9.6 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.15 // indirect
+	github.com/fxamacker/cbor/v2 v2.10.0 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.16 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
-	github.com/go-playground/locales v0.14.1 // indirect
-	github.com/go-playground/universal-translator v0.18.1 // indirect
-	github.com/go-playground/validator/v10 v10.30.5 // indirect
-	github.com/google/uuid v1.6.0 // indirect
+	github.com/go-playground/locales v0.14.2 // indirect
+	github.com/go-playground/universal-translator v0.18.2 // indirect
+	github.com/go-playground/validator/v10 v10.30.6 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect

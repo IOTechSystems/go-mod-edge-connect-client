@@ -493,7 +493,7 @@ func TestAckedMetricsAcceptsGoodQuality(t *testing.T) {
 	}
 }
 
-func TestReadRejectsInexactInteger(t *testing.T) {
+func TestReadExactInteger(t *testing.T) {
 	bus := mocks.NewMessageClient(t)
 	c, lc := newRecordingClient(t)
 	c.messageBus = bus
@@ -511,11 +511,9 @@ func TestReadRejectsInexactInteger(t *testing.T) {
 	}).Return(nil).Once()
 
 	result, err := c.ReadDeviceResources(context.Background(), bacnetNode, bacnetDevice, []string{"count"})
-	require.Error(t, err)
-	assert.Empty(t, result.Readings)
-	const want = "count: Read failed (UInt64 value 9007199254740993 is beyond 2^53)"
-	assert.Equal(t, want, err.Error())
-	assert.Equal(t, []string{"ERROR Sparkplug DCMD to " + bacnetDCMD + " failed: " + want}, lc.lines)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(1<<53+1), result.Readings["count"].Value, "beyond float64's exact integers")
+	assert.Empty(t, lc.lines)
 }
 
 func TestDACKFailureReachesCaller(t *testing.T) {

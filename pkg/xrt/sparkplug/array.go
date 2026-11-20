@@ -172,8 +172,10 @@ func littleEndian(b []byte) uint64 {
 	return binary.LittleEndian.Uint64(buf[:])
 }
 
-// numberElem converts the bits of a number to float64, truncated to the width of its datatype.
-func numberElem(dt protobuf.DataType, u uint64) float64 {
+// numberElem converts the bits of a number, truncated to the width of its datatype, to a reading value: an Int64 or
+// UInt64 to an exact int64 or uint64, as xrtmodels.Reading.UnmarshalJSON decodes them, and any other number to
+// float64, as a JSON number decodes.
+func numberElem(dt protobuf.DataType, u uint64) any {
 	switch dt {
 	case protobuf.DataType_Int8:
 		return float64(int8(u))
@@ -182,7 +184,7 @@ func numberElem(dt protobuf.DataType, u uint64) float64 {
 	case protobuf.DataType_Int32:
 		return float64(int32(u))
 	case protobuf.DataType_Int64:
-		return float64(int64(u))
+		return int64(u)
 	case protobuf.DataType_UInt8:
 		return float64(uint8(u))
 	case protobuf.DataType_UInt16:
@@ -194,7 +196,7 @@ func numberElem(dt protobuf.DataType, u uint64) float64 {
 	case protobuf.DataType_Double:
 		return math.Float64frombits(u)
 	}
-	return float64(u)
+	return u // UInt64
 }
 
 func decodeBools(b []byte) ([]any, bool) {

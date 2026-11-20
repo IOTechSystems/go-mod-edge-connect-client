@@ -18,7 +18,10 @@ const (
 
 // xrtComponent is the JSON value of an NBIRTH Service/<component> metric, published when XRT EnableServices is on.
 type xrtComponent struct {
+	Name     string `json:"name"`
 	Category string `json:"category"`
+	Type     string `json:"type"`
+	State    string `json:"state"`
 	Config   struct {
 		Name string `json:"Name"`
 	} `json:"config"`
@@ -50,9 +53,9 @@ func isSameOrNewerBdSeq(stored, death int64) bool {
 	return distance < 128
 }
 
-// deviceServices returns config.Name of each device service listed in the NBIRTH Service/* metrics, and the names
-// of the Service/* metrics it could not parse, which are skipped.
-func deviceServices(payload *protobuf.Payload) (names, invalid []string) {
+// components returns the components listed in the NBIRTH Service/* metrics, config.Name of each device service among
+// them, and the names of the Service/* metrics it could not parse, which are skipped.
+func components(payload *protobuf.Payload) (comps []models.Component, services, invalid []string) {
 	for _, m := range payload.GetMetrics() {
 		if !strings.HasPrefix(m.GetName(), serviceMetricPrefix) {
 			continue
@@ -62,11 +65,12 @@ func deviceServices(payload *protobuf.Payload) (names, invalid []string) {
 			invalid = append(invalid, m.GetName())
 			continue
 		}
+		comps = append(comps, models.Component{Name: comp.Name, Category: comp.Category, Type: comp.Type, State: comp.State})
 		if comp.Category == deviceServiceCategory && comp.Config.Name != "" {
-			names = append(names, comp.Config.Name)
+			services = append(services, comp.Config.Name)
 		}
 	}
-	return names, invalid
+	return comps, services, invalid
 }
 
 func metricDefs(payload *protobuf.Payload) []models.MetricDef {
